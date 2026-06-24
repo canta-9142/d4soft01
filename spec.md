@@ -130,3 +130,4 @@
 
 ## 5. 詳細な動作
 
+codex resume 019ef3a7-fb69-78b0-8fad-760b55fbd18e
