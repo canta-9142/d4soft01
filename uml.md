@@ -2,10 +2,48 @@
 
 ```mermaid
 classDiagram
+    class AppState {
+        -String version
+        -List~Canvas~ canvases
+        -String currentCanvasId
+    }
+    class ViewSettings {
+        -String searchText
+        -boolean depthFilterEnabled
+        -String depthFilterBaseTaskId
+        -int depthFilterDepth
+    }
+    
+    class AppMode {
+        <<enumeration>>
+        Normal
+        Edit
+        Connect
+    }
+    class TaskStatus {
+        <<enumeration>>
+        NotStarted
+        InProgress
+        Completed
+    }
+
+    class LocalStorageService {
+        <<static class>>
+        +save(AppState state): boolean
+        +restore(void): AppState
+    }
+    class FilterService {
+        <<static class>>
+        +filterByStatus(List~Task~ tasks, TaskStatus status): List~Task~
+        +filterByKeyword(List~Task~ tasks, String keyword): List~Task~
+        +filterByDepth(List~Task~ tasks, List~Connection~ connections, Task baseTask, int depth): List~Task~
+    }
+
     class Application{
         -AppMode mode
         -List~Canvas~ canvases
         -Canvas currentCanvas
+        -Task currentTask
 
         +setMode(AppMode mode)
         +createCanvas(Canvas canvas)
@@ -17,28 +55,9 @@ classDiagram
         +removeTask(String taskId)
         +createConnection(String sourceTaskId, String targetTaskId)
         +removeConnection(String connectionId)
-        +save(Canvas canvas)
-        +restore(void)
+        +save(AppState state): boolean
+        +restore(void): AppState
     }
-    class AppMode {
-        <<enumeration>>
-        Normal
-        Edit
-        Connect
-    }
-    class LocalStorageService {
-        <<static class>>
-        +save(Canvas canvas)
-        +restore(void)
-    }
-
-    class FilterService {
-        <<static class>>
-        +filterByStatus(List~Task~ tasks, TaskStatus status): List~Task~
-        +filterByKeyword(List~Task~ tasks, String keyword): List~Task~
-        +filterByDepth(List~Task~ tasks, Task baseTask, int depth): List~Task~
-    }
-    
     class Canvas {
         -String id
         -String title
@@ -50,7 +69,6 @@ classDiagram
         -DateTime createdAt
         -DateTime updatedAt
     }
-
     class Task {
         -String id
         -String title
@@ -67,22 +85,18 @@ classDiagram
         +updatePosition(int x, int y)
         +updateTimestamps(DateTime updatedAt)
     }
-    class TaskStatus {
-        <<enumeration>>
-        NotStarted
-        InProgress
-        Completed
-    }
-
     class Connection {
         -String id
-        -String sourceTaskId
-        -String targetTaskId
+        -String parentTaskId
+        -String childTaskId
     }
 
 
     Application -- AppMode : uses
     Task -- TaskStatus : uses
+
+    Application .. AppState : uses
+    Application .. ViewSettings : uses
 
     Application .. LocalStorageService : uses
     Application .. FilterService : uses
