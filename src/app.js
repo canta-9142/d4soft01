@@ -273,6 +273,7 @@
       updatedAt: createdAt,
     };
     canvas.tasks.push(task);
+    resetViewSettings();
     app.selectedTaskId = task.id;
     app.selectedConnectionId = null;
     app.editingTaskId = task.id;
@@ -408,6 +409,14 @@
     app.connectionSourceTaskId = null;
     app.editingTaskId = null;
     app.mode = "Normal";
+  }
+
+  function resetViewSettings() {
+    app.state.viewSettings.searchText = "";
+    app.state.viewSettings.statusFilter = null;
+    app.state.viewSettings.depthFilterEnabled = false;
+    app.state.viewSettings.depthBaseTaskId = null;
+    app.state.viewSettings.maxDepth = null;
   }
 
   function visibleTaskSet() {
@@ -964,11 +973,7 @@
   }
 
   function clearFilters() {
-    app.state.viewSettings.searchText = "";
-    app.state.viewSettings.statusFilter = null;
-    app.state.viewSettings.depthFilterEnabled = false;
-    app.state.viewSettings.depthBaseTaskId = null;
-    app.state.viewSettings.maxDepth = null;
+    resetViewSettings();
     els.filterError.textContent = "";
     setDirty();
     render();

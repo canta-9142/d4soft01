@@ -260,6 +260,10 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.empty-state[hidden] {
+  display: none;
+}
+
 .empty-state h1 {
   margin: 0;
   font-size: 22px;
