@@ -1,0 +1,10 @@
+{
+    "scripts": {
+        "dev:css": "tailwindcss -i ./src/tailwind.css -o ./dist/tailwind.css --watch",
+        "build:css": "tailwindcss -i ./src/tailwind.css -o ./dist/tailwind.css --minify"
+    },
+    "devDependencies": {
+        "@tailwindcss/cli": "latest",
+        "tailwindcss": "latest"
+    }
+}
