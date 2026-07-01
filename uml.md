@@ -3,7 +3,7 @@
 ```mermaid
 classDiagram
     class AppState {
-        -int version
+        -String version
         -List~Canvas~ canvases
         -String? currentCanvasId
         -ViewSettings viewSettings

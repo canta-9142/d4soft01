@@ -1,5 +1,0 @@
-export { render };
-
-function render() {
-    
-}
