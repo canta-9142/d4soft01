@@ -346,7 +346,7 @@
 - `connections`は各キャンバスの中に置く配列とし、各要素は2.4節で定義した接続の属性を持つオブジェクトとする。接続はキャンバスIDを持たず、どのキャンバスの`connections`配列に含まれるかによって所属を表す。
 - `currentCanvasId`は、現在のキャンバスが存在する場合はキャンバスIDとし、キャンバスが存在しない場合は`null`とする。
 - `viewSettings`は、`searchText`、`statusFilter`、`depthFilterEnabled`、`depthBaseTaskId`、`maxDepth`を持つオブジェクトとする。ステータス絞り込みが無効な場合、`statusFilter`は`null`とする。深さフィルターが無効、基準タスクが未設定、またはキャンバスが存在しない場合、`depthBaseTaskId`と`maxDepth`は`null`を許可する。
-- `version`は保存形式のバージョンを表す整数とし、初期値は`1`とする。
+- `version`は保存形式のバージョンを表す文字列とし、初期値は`1`とする。
 - 未知のバージョンまたは必須項目が欠けている保存データは、形式不正として扱う。
 
 #### 保存条件

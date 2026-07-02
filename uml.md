@@ -35,9 +35,9 @@ classDiagram
         +restore(void): RestoreResult
     }
     class RestoreResult {
-        -boolean success
-        -AppState state
-        -String? errorMessage
+        +boolean success
+        +AppState state
+        +String? errorMessage
     }
     class FilterService {
         <<static class>>
@@ -46,7 +46,6 @@ classDiagram
         +filterByDepth(List~Task~ tasks, List~Connection~ connections, Task baseTask, int depth): List~Task~
     }
     class HistoryManager {
-        -int maxEntries
         -List~HistoryEntry~ undoStack
         -List~HistoryEntry~ redoStack
 
@@ -81,32 +80,32 @@ classDiagram
         -Canvas? currentCanvas
         -Task? currentTask
         -Connection? currentConnection
-        -String? connectionSourceTaskId
+        -String? connectionParentTaskId
         -ClipboardState clipboardState
         -HistoryManager historyManager
         -boolean isDirty
 
         +setMode(AppMode mode)
-        +createCanvas(Canvas canvas)
-        +removeCanvas(String canvasId)
-        +updateCanvasTitle(String canvasId, String title)
-        +updateCanvasPosition(String canvasId, int x, int y)
-        +changeCanvas(String canvasId)
-        +createTask(Task task)
-        +updateTaskAttribute(String taskId, String title, String description, TaskStatus status)
-        +updateTaskPosition(String taskId, int x, int y)
-        +removeTask(String taskId)
-        +createConnection(String parentTaskId, String childTaskId)
-        +removeConnection(String connectionId)
-        +copyTask(String taskId)
-        +pasteTask(void)
-        +undo(void)
-        +redo(void)
+        +createCanvas(Canvas canvas): boolean
+        +removeCanvas(String canvasId): boolean
+        +updateCanvasTitle(String canvasId, String title): boolean
+        +updateCanvasPosition(String canvasId, int x, int y): boolean
+        +changeCanvas(String canvasId): boolean
+        +createTask(Task task): boolean
+        +updateTaskAttribute(String taskId, String title, String description, TaskStatus status): boolean
+        +updateTaskPosition(String taskId, int x, int y): boolean
+        +removeTask(String taskId): boolean
+        +createConnection(String parentTaskId, String childTaskId): boolean
+        +removeConnection(String connectionId): boolean
+        +copyTask(String taskId): boolean
+        +pasteTask(void): boolean
+        +undo(void): boolean
+        +redo(void): boolean
         +updateSearchText(String searchText)
-        +updateStatusFilter(TaskStatus? status)
-        +setDepthFilter(String baseTaskId, int maxDepth)
+        +updateStatusFilter(TaskStatus? status): boolean
+        +setDepthFilter(String baseTaskId, int maxDepth): boolean
         +clearDepthFilter(void)
-        +updateViewSettings(ViewSettings viewSettings)
+        +updateViewSettings(ViewSettings viewSettings): boolean
         +save(AppState state): boolean
         +restore(void): RestoreResult
     }
@@ -119,6 +118,10 @@ classDiagram
         -int y
         -String createdAt
         -String updatedAt
+
+        +updateTitle(String title)
+        +updatePosition(int x, int y)
+        +updateTimestamps(String updatedAt)
     }
     class Task {
         -String id
