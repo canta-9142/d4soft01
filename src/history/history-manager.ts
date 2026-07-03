@@ -3,8 +3,6 @@ import { Canvas } from "../domain/canvas";
 
 export const MAX_HISTORY_ENTRIES = 50;
 
-
-
 export class HistoryEntry {
     type: string = "";
     targetId: string = "";
