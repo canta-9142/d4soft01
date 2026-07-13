@@ -16,7 +16,7 @@ export class AppState {
 }
 
 export class Application {
-    mode = AppMode.NORMAL;
+    mode:AppMode = AppMode.NORMAL;
     state = new AppState();
     currentCanvas: Canvas | null = null;
     currentTask: Task | null = null;
@@ -26,19 +26,78 @@ export class Application {
     historyManager = new HistoryManager();
     isDirty: boolean = false;
 
-    public setMode = (mode: AppMode): void => {
+    // Utils
+    private canvasById = (canvasId: string): Canvas | undefined => {
+        return this.state.canvases.find(canvas => canvas.id === canvasId);
     }
-    public createCanvas = (canvas: Canvas): boolean => {
+    private canvasByTaskId = (taskId: string): Canvas | undefined => {
+        return this.state.canvases.find(canvas => {
+            canvas.tasks.find(task => task.id === taskId);
+        });
     }
-    public removeCanvas = (canvasId: string): boolean => {
-    }
-    public updateCanvasTitle = (canvasId: string, title: string): boolean => {
-    }
-    public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
-    }
-    public changeCanvas = (canvasId: string): boolean => {
+    private taskById = (taskId: string): Task | undefined => {
+        this.state.canvases.find(canvas => {
+            return canvas.tasks.find(task => task.id === taskId);
+        });
+        return undefined;
     }
 
+    // Public methods
+    public setMode = (mode: AppMode): void => {
+        this.mode = mode;
+    }
+
+    // Canvas manipulation
+    public createCanvas = (canvas: Canvas): boolean => {
+        try {
+            this.state.canvases.push(new Canvas());
+        } catch (e) {
+            console.error("Canvasの追加に失敗しました。", e);
+            return false;
+        }
+        return true;
+    }
+    public removeCanvas = (canvasId: string): boolean => {
+        try {
+            this.state.canvases = this.state.canvases.filter(canvas => canvas.id !== canvasId);
+        } catch (e) {
+            console.error("Canvasを削除できませんでした。", e);
+            return false;
+        }
+        return true;
+    }
+    public updateCanvasTitle = (canvasId: string, title: string): boolean => {
+        try {
+            this.canvasById(canvasId)?.updateTitle(title);
+        } catch (e) {
+            console.error("タイトルを変更できませんでした。", e);
+            return false;
+        }
+        return true;
+    }
+    public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
+        try {
+            this.canvasById(canvasId)?.updatePosition(x, y);
+        } catch (e) {
+            console.error("エラーが発生しました。", e);
+            return false;
+        }
+        return true;
+    }
+    public changeCanvas = (canvasId: string): boolean => {
+        let id: string | undefined;
+        try {
+            id = this.canvasById(canvasId)?.id;
+        } catch (e) {
+            console.error("選択したCanvasは存在しません。", e);
+            return false;
+        }
+        if (!id) return false;
+        this.state.currentCanvasId = id;
+        return true;
+    }
+
+    // Tasks manipulation
     public createTask = (task: Task): boolean => {
     }
     public updateTaskTitle = (taskId: string, title: string): boolean => {
@@ -62,6 +121,7 @@ export class Application {
     public pasteTask = (): boolean => {
     }
 
+    // Undo and Redo
     public undo = (): boolean => {
         let result = this.historyManager.undo();
         if (result) return true;
@@ -73,6 +133,7 @@ export class Application {
         return false;
     }
 
+    // Searching and Filters
     public updateSearchText = (searchText: string): void => {
     }
     public updateStatusFilter = (status: TaskStatus | null): boolean => {
@@ -86,6 +147,7 @@ export class Application {
     public updateViewSettings = (viewSettings: ViewSettings): void => {
     }
 
+    // Save and Restore
     public save = (): boolean => {
         let result = LocalStorageService.save(this.state);
         if (result) {
