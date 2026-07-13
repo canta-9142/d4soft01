@@ -18,7 +18,6 @@ export class AppState {
 export class Application {
     mode:AppMode = AppMode.NORMAL;
     state = new AppState();
-    currentCanvas: Canvas | null = null;
     currentTask: Task | null = null;
     currentConnection: Connection | null = null;
     connectionParentTaskId: string | null = null;
@@ -35,6 +34,11 @@ export class Application {
             canvas.tasks.find(task => task.id === taskId);
         });
     }
+    private canvasByConnectionId = (connectionId: string): Canvas | undefined => {
+        return this.state.canvases.find(canvas => {
+            canvas.connections.find(connection => connection.id === connectionId);
+        });
+    }
     private taskById = (taskId: string): Task | undefined => {
         this.state.canvases.find(canvas => {
             return canvas.tasks.find(task => task.id === taskId);
@@ -48,72 +52,87 @@ export class Application {
     }
 
     // Canvas manipulation
-    public createCanvas = (canvas: Canvas): boolean => {
-        try {
-            this.state.canvases.push(new Canvas());
-        } catch (e) {
-            console.error("Canvasの追加に失敗しました。", e);
-            return false;
-        }
-        return true;
+    public createCanvas = (): void => {
+        this.state.canvases.push(new Canvas());
     }
     public removeCanvas = (canvasId: string): boolean => {
-        try {
-            this.state.canvases = this.state.canvases.filter(canvas => canvas.id !== canvasId);
-        } catch (e) {
-            console.error("Canvasを削除できませんでした。", e);
-            return false;
-        }
+        const canvases = this.state.canvases.filter(canvas => canvas.id !== canvasId);
+        if (!canvases) return false;
+        this.state.canvases = canvases;
         return true;
     }
     public updateCanvasTitle = (canvasId: string, title: string): boolean => {
-        try {
-            this.canvasById(canvasId)?.updateTitle(title);
-        } catch (e) {
-            console.error("タイトルを変更できませんでした。", e);
-            return false;
-        }
+        const canvas = this.canvasById(canvasId);
+        if (!canvas) return false;
+        canvas.updateTitle(title);
         return true;
     }
     public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
-        try {
-            this.canvasById(canvasId)?.updatePosition(x, y);
-        } catch (e) {
-            console.error("エラーが発生しました。", e);
-            return false;
-        }
+        const canvas = this.canvasById(canvasId);
+        if (!canvas) return false;
+        canvas.updatePosition(x, y);
         return true;
     }
     public changeCanvas = (canvasId: string): boolean => {
-        let id: string | undefined;
-        try {
-            id = this.canvasById(canvasId)?.id;
-        } catch (e) {
-            console.error("選択したCanvasは存在しません。", e);
-            return false;
-        }
+        const id = this.canvasById(canvasId)?.id;
         if (!id) return false;
         this.state.currentCanvasId = id;
         return true;
     }
 
     // Tasks manipulation
-    public createTask = (task: Task): boolean => {
+    public createTask = (): boolean => {
+        const canvas = this.canvasById(this.state.currentCanvasId);
+        if (!canvas) return false;
+        canvas.tasks.push(new Task());
+        return true;
     }
     public updateTaskTitle = (taskId: string, title: string): boolean => {
+        const task = this.taskById(taskId);
+        if (!task) return false;
+        task.updateTitle(title);
+        return true;
     }
     public updateTaskDescription = (taskId: string, description: string): boolean => {
+        const task = this.taskById(taskId);
+        if (!task) return false;
+        task.updateDescription(description);
+        return true;
     }
     public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
+        const task = this.taskById(taskId);
+        if (!task) return false;
+        task.updateStatus(status);
+        return true;
     }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
+        const task = this.taskById(taskId);
+        if (!task) return false;
+        task.updatePosition(x, y);
+        return true;
     }
     public removeTask = (taskId: string): boolean => {
+        const canvas = this.canvasByTaskId(taskId);
+        if (!canvas) return false;
+        const tasks = canvas.tasks.filter(task => task.id !== taskId);
+        if (!tasks) return false;
+        canvas.tasks = tasks;
+        return true;
     }
 
-    public createConnection = (connection: Connection): boolean => {
+    public createConnection = (): boolean => {
+        const canvas = this.canvasById(this.state.currentCanvasId);
+        if (!canvas) return false;
+        canvas.connections.push(new Connection());
+        return true;
     }
     public removeConnection = (connectionId: string): boolean => {
+        const canvas = this.canvasByConnectionId(connectionId);
+        if (!canvas) return false;
+        const connections = canvas.connections.filter(connection => connection.id !== connectionId);
+        if (!connections) return false;
+        canvas.connections = connections;
+        return true;
     }
 
     public copyTaskToClipboard = (taskId: string): boolean => {

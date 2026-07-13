@@ -13,12 +13,14 @@ export class Canvas {
 
     public updateTitle = (title: string): void => {
         this.title = title;
+        this.updateTimestamps();
     }
     public updatePosition = (x: number, y: number): void => {
         this.x = x;
         this.y = y;
+        this.updateTimestamps();
     }
-    public updateTimestamps = (updatedAt: Date): void => {
+    private updateTimestamps = (updatedAt: Date): void => {
         this.updatedAt = updatedAt;
     }
 }
