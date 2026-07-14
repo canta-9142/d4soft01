@@ -136,8 +136,24 @@ export class Application {
     }
 
     public copyTaskToClipboard = (taskId: string): boolean => {
+        const task = this.taskById(taskId);
+        if (!task) return false;
+        this.clipboardState.sourceTask = task;
+        return true;
     }
     public pasteTask = (): boolean => {
+        const sourceTask = this.clipboardState.sourceTask;
+        if (!sourceTask) return false;
+        const canvas = this.canvasById(this.state.currentCanvasId);
+        if (!canvas) return false;
+        const newTask = new Task();
+        newTask.title = sourceTask.title;
+        newTask.description = sourceTask.description;
+        newTask.status = sourceTask.status;
+        newTask.x = sourceTask.x + 10; // Offset to avoid overlap
+        newTask.y = sourceTask.y + 10; // Offset to avoid overlap
+        canvas.tasks.push(newTask);
+        return true;
     }
 
     // Undo and Redo
@@ -154,16 +170,19 @@ export class Application {
 
     // Searching and Filters
     public updateSearchText = (searchText: string): void => {
+        this.state.viewSettings.searchText = searchText;
     }
-    public updateStatusFilter = (status: TaskStatus | null): boolean => {
+    public updateStatusFilter = (status: TaskStatus | null): void => {
+        this.state.viewSettings.statusFilter = status;
     }
 
-    public setDepthFilter = (baseTaskId: string | null, maxDepth: number): boolean => {
+    public setDepthFilter = (baseTaskId: string | null, maxDepth: number): void => {
+        this.state.viewSettings.depthFilterEnabled = true;
+        this.state.viewSettings.depthBaseTaskId = baseTaskId;
+        this.state.viewSettings.maxDepth = maxDepth;
     }
     public clearDepthFilter = (): void => {
-    }
-
-    public updateViewSettings = (viewSettings: ViewSettings): void => {
+        this.state.viewSettings.depthFilterEnabled = false;
     }
 
     // Save and Restore
@@ -179,7 +198,6 @@ export class Application {
         let result = LocalStorageService.load();
         if (result.success && result.state) {
             this.state = result.state;
-            this.currentCanvas = this.state.canvases.find(c => c.id === this.state.currentCanvasId) || null;
             this.isDirty = false;
             return true;
         }
