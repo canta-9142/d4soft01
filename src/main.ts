@@ -1,8 +1,12 @@
-import { Application } from "./application/application"
+import { Application } from "./application/application.js";
+import { EventController } from "./ui/events.js";
+import { Renderer } from "./ui/renderer.js";
 
 (() => {
     const app = new Application();
+    const renderer = new Renderer(app);
+    const events = new EventController(app, renderer);
 
-    const viewport = document.querySelector("#viewport");
-    const statusViewport = document.querySelector("#statusviewport");
-})
+    events.bind();
+    renderer.render();
+})();

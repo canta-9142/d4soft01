@@ -8,34 +8,75 @@
         <link rel="stylesheet" href="./dist/tailwind.css">
     </head>
     <body>
-
         <header class="menubar">
-            <button id="hamburger" class="icon-button" title="メニュー" aria-label="メニュー">
-                <div class="tw:mt-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+            <div class="menu-anchor">
+                <button id="hamburger" class="icon-button" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
+                    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                         <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
                     </svg>
-                </div>
-            </button>
-            
-            <div class="canvas-title">
-                <input id="canvasTitleInput" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled />
+                </button>
+                <aside id="canvasMenu" class="canvas-menu" hidden>
+                    <div class="menu-heading">キャンバス</div>
+                    <div id="canvasList" class="canvas-list"></div>
+                    <button id="newCanvasButton" class="menu-action" type="button">＋ 新規キャンバス</button>
+                </aside>
+            </div>
+
+            <input id="canvasTitleInput" class="canvas-title-input" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
+
+            <div class="toolbar-status" aria-live="polite">
+                <span id="modeIndicator" class="mode-indicator">通常モード</span>
+                <span id="taskCount">タスク 0</span>
+                <span id="dirtyIndicator">変更なし</span>
+            </div>
+
+            <div class="toolbar-actions">
+                <button id="addTaskButton" class="button" type="button" disabled>＋ タスクを追加</button>
+                <button id="connectModeButton" class="button" type="button" aria-pressed="false" disabled>接続を作成</button>
             </div>
         </header>
 
-
-        <main>
-            <div id="viewport">
-                <div id="canvas"></div>
+        <main id="viewport" class="viewport">
+            <div id="canvasWorld" class="canvas-world" hidden>
+                <svg id="connectionLayer" class="connection-layer" aria-label="接続線"></svg>
+                <div id="taskLayer" class="task-layer"></div>
             </div>
-
+            <section id="emptyState" class="empty-state">
+                <div class="empty-state-icon" aria-hidden="true">◇</div>
+                <h1>キャンバスがありません</h1>
+                <p>最初のキャンバスを作成して、カードを並べてみましょう。</p>
+                <button id="emptyCreateCanvasButton" class="button primary" type="button">新規キャンバスを作成</button>
+            </section>
         </main>
 
+        <div id="message" class="message" role="status" hidden></div>
 
-        <footer>
-            <div id="statusviewport"></div>
-        </footer>
-
+        <dialog id="taskDialog" class="task-dialog">
+            <form id="taskForm" method="dialog">
+                <h2 id="taskDialogTitle">タスクを追加</h2>
+                <label>
+                    タイトル
+                    <input id="taskTitleInput" type="text" maxlength="120" autocomplete="off" required>
+                </label>
+                <label>
+                    説明
+                    <textarea id="taskDescriptionInput" rows="4"></textarea>
+                </label>
+                <label>
+                    ステータス
+                    <select id="taskStatusInput">
+                        <option value="not_started">未着手</option>
+                        <option value="in_progress">進行中</option>
+                        <option value="completed">完了</option>
+                    </select>
+                </label>
+                <p id="taskFormError" class="form-error" role="alert"></p>
+                <div class="dialog-actions">
+                    <button id="taskCancelButton" class="button" type="button">キャンセル</button>
+                    <button class="button primary" type="submit">確定</button>
+                </div>
+            </form>
+        </dialog>
 
         <script type="module" src="./dist/main.js"></script>
     </body>
