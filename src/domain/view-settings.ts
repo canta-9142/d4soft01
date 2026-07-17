@@ -1,4 +1,4 @@
-import { TaskStatus } from "./enums";
+import { TaskStatus } from "./enums.js";
 
 export class ViewSettings{
     searchText: string = "";
