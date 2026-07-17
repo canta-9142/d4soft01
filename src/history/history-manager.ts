@@ -27,20 +27,20 @@ export class HistoryManager {
         this.redoStack = [];
     }
 
-    public undo = (state: AppState): HistoryEntry | null => {
+    public undo = (state: AppState): AppState | null => {
         const entry = this.undoStack.pop();
         if (entry) {
             this.redoStack.push(entry);
         }
-        return entry || null;
+        return null;
     }
 
-    public redo = (state: AppState): HistoryEntry | null => {
+    public redo = (state: AppState): AppState | null => {
         const entry = this.redoStack.pop();
         if (entry) {
             this.undoStack.push(entry);
         }
-        return entry || null;
+        return null;
     }
 
     public clear = (): void => {
