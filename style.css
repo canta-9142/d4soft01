@@ -214,6 +214,14 @@ button:disabled {
     cursor: grabbing;
 }
 
+.viewport.is-empty::before {
+    position: absolute;
+    z-index: 5;
+    inset: 0;
+    background: rgb(47 52 55 / 24%);
+    content: "";
+}
+
 .canvas-world,
 .task-layer,
 .connection-layer {
@@ -243,7 +251,6 @@ button:disabled {
     border: 1px solid #e3e2de;
     border-radius: 8px;
     background: #fff;
-    box-shadow: 0 3px 10px rgb(47 52 55 / 8%);
     cursor: grab;
     pointer-events: auto;
     will-change: transform;
@@ -251,14 +258,12 @@ button:disabled {
 
 .task-card:hover {
     border-color: #c9c8c4;
-    box-shadow: 0 5px 16px rgb(47 52 55 / 12%);
 }
 
 .task-card.is-selected,
 .task-card.is-connection-source {
     z-index: 4;
     border-color: #2f6feb;
-    box-shadow: 0 0 0 2px rgb(47 111 235 / 16%), 0 7px 20px rgb(47 52 55 / 12%);
 }
 
 .task-card.is-connection-source::after {
@@ -341,6 +346,7 @@ button:disabled {
 
 .empty-state {
     position: absolute;
+    z-index: 6;
     top: 50%;
     left: 50%;
     width: min(420px, calc(100% - 40px));
@@ -394,7 +400,6 @@ button:disabled {
     border-radius: 10px;
     color: #2f3437;
     background: #fff;
-    box-shadow: 0 18px 60px rgb(47 52 55 / 22%);
 }
 
 .task-dialog::backdrop {

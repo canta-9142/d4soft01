@@ -62,6 +62,7 @@ export class Renderer {
         this.dirtyIndicator.classList.toggle("is-dirty", this.app.isDirty);
         this.emptyState.hidden = hasCanvas;
         this.canvasWorld.hidden = !hasCanvas;
+        this.viewport.classList.toggle("is-empty", !hasCanvas);
 
         this.renderCanvasList();
         this.taskLayer.replaceChildren();
