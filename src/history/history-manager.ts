@@ -1,5 +1,6 @@
 import { Connection } from "../domain/connection.js";
 import { Canvas } from "../domain/canvas.js";
+import { AppState } from "../application/application.js";
 
 export const MAX_HISTORY_ENTRIES = 50;
 
@@ -26,7 +27,7 @@ export class HistoryManager {
         this.redoStack = [];
     }
 
-    public undo = (): HistoryEntry | null => {
+    public undo = (state: AppState): HistoryEntry | null => {
         const entry = this.undoStack.pop();
         if (entry) {
             this.redoStack.push(entry);
@@ -34,7 +35,7 @@ export class HistoryManager {
         return entry || null;
     }
 
-    public redo = (): HistoryEntry | null => {
+    public redo = (state: AppState): HistoryEntry | null => {
         const entry = this.redoStack.pop();
         if (entry) {
             this.undoStack.push(entry);
