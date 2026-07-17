@@ -47,7 +47,7 @@ export class Renderer {
         this.message = this.required("#message", HTMLElement);
     }
 
-    render = (): void => {
+    public render = (): void => {
         const canvas = this.app.getCurrentCanvas();
         const hasCanvas = canvas !== undefined;
 
