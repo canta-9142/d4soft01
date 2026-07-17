@@ -1,0 +1,3 @@
+HistoryManagerはUndo・Redoを管理するサービスです
+undo()、redo()はAppStateを返します
+HistoryEntryの設計を改めて提案してください
