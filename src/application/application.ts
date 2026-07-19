@@ -237,13 +237,17 @@ export class Application {
 
     // Undo and Redo
     public undo = (): boolean => {
-        let result = this.historyManager.undo();
+        const result = this.historyManager.undo(this.state);
         if (!result) return false;
+        this.state = result;
+        this.isDirty = true;
         return true;
     }
     public redo = (): boolean => {
-        let result = this.historyManager.redo();
+        const result = this.historyManager.redo(this.state);
         if (!result) return false;
+        this.state = result;
+        this.isDirty = true;
         return true;
     }
 
