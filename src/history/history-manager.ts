@@ -16,15 +16,15 @@ export type HistoryAction =
     | "viewSettings"
     | "clipboard";
 
-export type AppStateTransformer = (state: AppState) => AppState;
-
 interface HistoryEntryInit {
     action?: HistoryAction;
     description?: string;
     targetId?: string | null;
     canvasId?: string | null;
-    undo: AppStateTransformer;
-    redo: AppStateTransformer;
+    beforeState: AppState;
+    afterState: AppState;
+    affectedConnectionIds?: Array<string>;
+    affectedCanvasIds?: Array<string>;
     createdAt?: Date;
 }
 
@@ -48,8 +48,10 @@ export class HistoryEntry {
     description: string;
     targetId: string | null;
     canvasId: string | null;
-    undo: AppStateTransformer;
-    redo: AppStateTransformer;
+    beforeState: AppState;
+    afterState: AppState;
+    affectedConnectionIds: Array<string>;
+    affectedCanvasIds: Array<string>;
     createdAt: Date;
 
     constructor(init: HistoryEntryInit) {
@@ -57,8 +59,10 @@ export class HistoryEntry {
         this.description = init.description ?? "";
         this.targetId = init.targetId ?? null;
         this.canvasId = init.canvasId ?? null;
-        this.undo = init.undo;
-        this.redo = init.redo;
+        this.beforeState = cloneValue(init.beforeState);
+        this.afterState = cloneValue(init.afterState);
+        this.affectedConnectionIds = init.affectedConnectionIds ?? [];
+        this.affectedCanvasIds = init.affectedCanvasIds ?? [];
         this.createdAt = init.createdAt ?? new Date();
     }
 }
@@ -79,14 +83,14 @@ export class HistoryManager {
         const entry = this.undoStack.pop();
         if (!entry) return null;
         this.redoStack.push(entry);
-        return entry.undo(cloneValue(state));
+        return cloneValue(entry.beforeState);
     }
 
     public redo = (state: AppState): AppState | null => {
         const entry = this.redoStack.pop();
         if (!entry) return null;
         this.undoStack.push(entry);
-        return entry.redo(cloneValue(state));
+        return cloneValue(entry.afterState);
     }
 
     public clear = (): void => {

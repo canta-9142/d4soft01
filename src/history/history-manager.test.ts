@@ -6,31 +6,26 @@ import { Canvas } from "../domain/canvas.js";
 import { Task } from "../domain/task.js";
 import { HistoryEntry, HistoryManager } from "./history-manager.js";
 
-test("undo and redo apply stored transformers to the incoming app state", () => {
+test("undo and redo return the recorded before and after states", () => {
     const manager = new HistoryManager();
 
     const canvas = new Canvas("canvas-1", "Canvas 1");
     const initialState = new AppState("v1", [canvas], "canvas-1");
     const task = new Task("task-1", "Task A");
 
+    const beforeState = new AppState("v1", [new Canvas("canvas-1", "Canvas 1")], "canvas-1");
+    const afterState = new AppState("v2", [new Canvas("canvas-1", "Canvas 1")], "canvas-1");
+    afterState.canvases[0]?.tasks.push(task);
+
     manager.record(new HistoryEntry({
         action: "createTask",
+        description: "タスク作成",
         targetId: task.id,
         canvasId: "canvas-1",
-        undo: (state) => {
-            const targetCanvas = state.canvases[0];
-            if (targetCanvas) {
-                targetCanvas.tasks = [];
-            }
-            return state;
-        },
-        redo: (state) => {
-            const targetCanvas = state.canvases[0];
-            if (targetCanvas) {
-                targetCanvas.tasks.push(task);
-            }
-            return state;
-        }
+        beforeState,
+        afterState,
+        affectedConnectionIds: [],
+        affectedCanvasIds: ["canvas-1"]
     }));
 
     const undoneState = manager.undo(initialState);
