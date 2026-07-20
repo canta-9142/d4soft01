@@ -22,35 +22,46 @@ export class EventController {
         private readonly renderer: Renderer,
     ) {}
 
-    bind = (): void => {
+    // Bind event listeners to DOM elements and the application state
+    public bind = (): void => {
+
+        // Hamburger menu のトグル
         document.querySelector("#hamburger")?.addEventListener("click", event => {
             event.stopPropagation();
             this.renderer.toggleMenu();
         });
-        document.querySelector("#newCanvasButton")?.addEventListener("click", this.createCanvas);
-        document.querySelector("#emptyCreateCanvasButton")?.addEventListener("click", this.createCanvas);
-        this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter());
-        this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode);
-        this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle);
-
-        document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas);
+        // manu 内のボタンのイベントリスナー
+        document.querySelector("#newCanvasButton")?.addEventListener("click", this.createCanvas); // 新規キャンバス作成ボタン
+        document.querySelector("#emptyCreateCanvasButton")?.addEventListener("click", this.createCanvas); // キャンバスがないときの新規キャンバス作成ボタン
+        this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter()); // 新規タスク作成ボタン
+        this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode); // 接続モード切替ボタン
+        this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle); // キャンバスタイトルの変更
+        document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas); // キャンバスリストからキャンバスを選択して切替
+        
+        // ビューポートのイベントリスナー
+        // ポインタ操作
         this.renderer.viewport.addEventListener("pointerdown", this.onPointerDown);
         this.renderer.viewport.addEventListener("pointermove", this.onPointerMove);
         this.renderer.viewport.addEventListener("pointerup", this.onPointerUp);
         this.renderer.viewport.addEventListener("pointercancel", this.onPointerUp);
+        // ダブルクリック
         this.renderer.viewport.addEventListener("dblclick", this.onDoubleClick);
 
+        // タスクフォーム(タスク追加ダイアログの中身)の確定ボタン
         this.renderer.taskForm.addEventListener("submit", this.saveTask);
+        // タスク追加ダイアログのEscキーでのキャンセル
         this.renderer.taskDialog.addEventListener("cancel", () => {
             this.app.setMode(AppMode.NORMAL);
             this.renderer.render();
         });
+        // タスク追加ダイアログのキャンセルボタンでのキャンセル
         document.querySelector("#taskCancelButton")?.addEventListener("click", () => {
             this.renderer.closeTaskDialog();
             this.app.setMode(AppMode.NORMAL);
             this.renderer.render();
         });
 
+        // ドキュメント全体のクリックイベントでメニューを閉じる
         document.addEventListener("click", event => {
             const target = event.target;
             if (!(target instanceof Node)) return;
@@ -58,6 +69,8 @@ export class EventController {
                 this.renderer.toggleMenu(false);
             }
         });
+        
+        // キーボード操作
         document.addEventListener("keydown", this.onKeyDown);
     }
 

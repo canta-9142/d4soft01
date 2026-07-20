@@ -3,6 +3,12 @@ import { Task } from "../domain/task.js";
 import { Connection } from "../domain/connection.js";
 import { Canvas } from "../domain/canvas.js";
 import { ViewSettings } from "../domain/view-settings.js";
+import {
+    findCanvasByConnectionId,
+    findCanvasById,
+    findCanvasByTaskId,
+    findTaskById,
+} from "../domain/entity-finders.js";
 import { ClipboardState } from "./clipboard-state.js";
 import { HistoryManager } from "../history/history-manager.js";
 
@@ -30,20 +36,6 @@ export class Application {
     historyManager = new HistoryManager();
     isDirty: boolean = false;
 
-    // Utils
-    private canvasById = (canvasId: string): Canvas | undefined => {
-        return this.state.canvases.find(canvas => canvas.id === canvasId);
-    }
-    private canvasByTaskId = (taskId: string): Canvas | undefined => {
-        return this.state.canvases.find(canvas => canvas.tasks.some(task => task.id === taskId));
-    }
-    private canvasByConnectionId = (connectionId: string): Canvas | undefined => {
-        return this.state.canvases.find(canvas => canvas.connections.some(connection => connection.id === connectionId));
-    }
-    private taskById = (taskId: string): Task | undefined => {
-        return this.canvasByTaskId(taskId)?.tasks.find(task => task.id === taskId);
-    }
-
     private generateVersionId(): string {
         return "v-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
     }
@@ -70,11 +62,11 @@ export class Application {
     }
 
     public getCurrentCanvas = (): Canvas | undefined => {
-        return this.canvasById(this.state.currentCanvasId);
+        return findCanvasById(this.state.canvases, this.state.currentCanvasId);
     }
 
     public getTask = (taskId: string): Task | undefined => {
-        return this.taskById(taskId);
+        return findTaskById(this.state.canvases, taskId);
     }
 
     // Canvas manipulation
@@ -106,7 +98,7 @@ export class Application {
         return true;
     }
     public updateCanvasTitle = (canvasId: string, title: string): boolean => {
-        const canvas = this.canvasById(canvasId);
+        const canvas = findCanvasById(this.state.canvases, canvasId);
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle) return false;
         canvas.updateTitle(normalizedTitle);
@@ -114,7 +106,7 @@ export class Application {
         return true;
     }
     public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
-        const canvas = this.canvasById(canvasId);
+        const canvas = findCanvasById(this.state.canvases, canvasId);
         if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return false;
         canvas.updatePosition(x, y);
         this.isDirty = true;
@@ -122,7 +114,7 @@ export class Application {
     }
     public updateCanvasPosition = this.updateCanvasPosisiton;
     public changeCanvas = (canvasId: string): boolean => {
-        const id = this.canvasById(canvasId)?.id;
+        const id = findCanvasById(this.state.canvases, canvasId)?.id;
         if (!id) return false;
         this.state.currentCanvasId = id;
         this.currentTaskId = null;
@@ -137,7 +129,7 @@ export class Application {
         return this.createTaskAt("新しいタスク", "", TaskStatus.NOTSTARTED, 40, 40) !== null;
     }
     public createTaskAt = (title: string, description: string, status: TaskStatus, x: number, y: number): string | null => {
-        const canvas = this.canvasById(this.state.currentCanvasId);
+        const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle || !Number.isFinite(x) || !Number.isFinite(y)) return null;
         const task = new Task(this.generateTaskId(), normalizedTitle, description, status, x, y);
@@ -148,7 +140,7 @@ export class Application {
         return task.id;
     }
     public updateTaskTitle = (taskId: string, title: string): boolean => {
-        const task = this.taskById(taskId);
+        const task = findTaskById(this.state.canvases, taskId);
         const normalizedTitle = title.trim();
         if (!task || !normalizedTitle) return false;
         task.updateTitle(normalizedTitle);
@@ -156,28 +148,28 @@ export class Application {
         return true;
     }
     public updateTaskDescription = (taskId: string, description: string): boolean => {
-        const task = this.taskById(taskId);
+        const task = findTaskById(this.state.canvases, taskId);
         if (!task) return false;
         task.updateDescription(description);
         this.isDirty = true;
         return true;
     }
     public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
-        const task = this.taskById(taskId);
+        const task = findTaskById(this.state.canvases, taskId);
         if (!task) return false;
         task.updateStatus(status);
         this.isDirty = true;
         return true;
     }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
-        const task = this.taskById(taskId);
+        const task = findTaskById(this.state.canvases, taskId);
         if (!task || !Number.isFinite(x) || !Number.isFinite(y)) return false;
         task.updatePosition(x, y);
         this.isDirty = true;
         return true;
     }
     public removeTask = (taskId: string): boolean => {
-        const canvas = this.canvasByTaskId(taskId);
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
         if (!canvas) return false;
         canvas.tasks = canvas.tasks.filter(task => task.id !== taskId);
         canvas.connections = canvas.connections.filter(connection =>
@@ -191,7 +183,7 @@ export class Application {
     }
 
     public createConnection = (parentTaskId: string, childTaskId: string): boolean => {
-        const canvas = this.canvasById(this.state.currentCanvasId);
+        const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
         if (parentTaskId === childTaskId) return false;
         const taskIds = new Set(canvas.tasks.map(task => task.id));
@@ -206,7 +198,7 @@ export class Application {
     }
 
     public removeConnection = (connectionId: string): boolean => {
-        const canvas = this.canvasByConnectionId(connectionId);
+        const canvas = findCanvasByConnectionId(this.state.canvases, connectionId);
         if (!canvas) return false;
         canvas.connections = canvas.connections.filter(connection => connection.id !== connectionId);
         if (this.currentConnectionId === connectionId) this.currentConnectionId = null;
@@ -215,7 +207,7 @@ export class Application {
     }
 
     public copyTaskToClipboard = (taskId: string): boolean => {
-        const task = this.taskById(taskId);
+        const task = findTaskById(this.state.canvases, taskId);
         if (!task) return false;
         this.clipboardState.sourceTask = task;
         return true;
@@ -223,7 +215,7 @@ export class Application {
     public pasteTask = (): boolean => {
         const sourceTask = this.clipboardState.sourceTask;
         if (!sourceTask) return false;
-        const canvas = this.canvasById(this.state.currentCanvasId);
+        const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
         const newTask = new Task(this.generateTaskId());
         newTask.title = sourceTask.title;
