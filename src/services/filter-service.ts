@@ -28,6 +28,6 @@ export class FilterService {
         source: FilterSource,
         criteria: FilterCriteria
     ): FilterResult {
-        //
+        // ここに実装を書く
     }
 }
