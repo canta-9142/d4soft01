@@ -17,16 +17,7 @@ test("undo and redo return the recorded before and after states", () => {
     const afterState = new AppState("v2", [new Canvas("canvas-1", "Canvas 1")], "canvas-1");
     afterState.canvases[0]?.tasks.push(task);
 
-    manager.record(initialState, new HistoryEntry({
-        action: "createTask",
-        description: "タスク作成",
-        targetId: task.id,
-        canvasId: "canvas-1",
-        beforeState,
-        afterState,
-        affectedConnectionIds: [],
-        affectedCanvasIds: ["canvas-1"]
-    }));
+    manager.record(initialState);
 
     const undoneState = manager.undo();
     if (undoneState === null) {
