@@ -29,10 +29,14 @@ test("undo and redo return the recorded before and after states", () => {
     }));
 
     const undoneState = manager.undo();
-    assert.ok(undoneState !== null);
+    if (undoneState === null) {
+        assert.fail("undoneState should not be null");
+    }
     assert.equal(undoneState.canvases[0]?.tasks.length, 0);
 
     const redoneState = manager.redo();
-    assert.ok(redoneState !== null);
+    if (redoneState === null) {
+        assert.fail("redoneState should not be null");
+    }
     assert.equal(redoneState.canvases[0]?.tasks[0]?.title, "Task A");
 });
