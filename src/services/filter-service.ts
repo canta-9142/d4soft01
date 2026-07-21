@@ -1,19 +1,33 @@
-import { TaskStatus } from "../domain/enums";
-import { Task } from "../domain/task";
-import { Connection } from "../domain/connection";
+import { TaskStatus } from "../domain/enums.js";
+import { Task } from "../domain/task.js";
+import { Connection } from "../domain/connection.js";
+
+export type FilterSource = {
+    readonly tasks: readonly Task[];
+    readonly connections: readonly Connection[];
+};
+
+export type FilterCriteria = {
+    readonly keyword: string | null;
+    readonly status: TaskStatus | null;
+    readonly depth: {
+        readonly baseTaskId: string;
+        readonly maxDepth: number;
+    } | null;
+}
+
+export type FilterResult = {
+    readonly tasks: readonly Task[];
+    readonly connections: readonly Connection[];
+};
 
 export class FilterService {
     private constructor() {};
 
-    public static filterByStatus = (tasks: Array<Task>, status: TaskStatus): Array<Task> => {
-
-    }
-
-    public static filterByKeyword = (tasks: Array<Task>, keyword: string): Array<Task> => {
-
-    }
-
-    public static filterByDepth = (tasks: Array<Task>, connections: Array<Connection>, baseTask: Task, depth: number): Array<Task> => {
-
+    public static apply(
+        source: FilterSource,
+        criteria: FilterCriteria
+    ): FilterResult {
+        // ここに実装を書く
     }
 }

@@ -1,11 +1,5 @@
-import { TaskStatus } from "../domain/enums";
+import { Task } from "../domain/task.js";
 
 export class ClipboardState {
-    sourceTaskId: string | null = null;
-    sourceCanvasId: string | null = null;
-    title: string | null = null;
-    description: string | null = null;
-    status: TaskStatus | null = null;
-    x: number | null = null;
-    y: number | null = null;
+    sourceTask: Task | null = null;
 }

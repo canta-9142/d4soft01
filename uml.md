@@ -5,7 +5,7 @@ classDiagram
     class AppState {
         -String version
         -List~Canvas~ canvases
-        -String? currentCanvasId
+        -String currentCanvasId
         -ViewSettings viewSettings
     }
     class ViewSettings {
@@ -32,11 +32,11 @@ classDiagram
     class LocalStorageService {
         <<static class>>
         +save(AppState state): boolean
-        +restore(void): RestoreResult
+        +load(void): RestoreResult
     }
     class RestoreResult {
         +boolean success
-        +AppState state
+        +AppState? state
         +String? errorMessage
     }
     class FilterService {
@@ -77,7 +77,6 @@ classDiagram
     class Application{
         -AppMode mode
         -AppState state
-        -Canvas? currentCanvas
         -Task? currentTask
         -Connection? currentConnection
         -String? connectionParentTaskId
@@ -85,29 +84,35 @@ classDiagram
         -HistoryManager historyManager
         -boolean isDirty
 
+        -canvasById(String canvasId): Canvas?
+        -canvasByTaskId(String taskId): Canvas?
+        -canvasByConnectionId(String connectionId): Canvas?
+        -taskById(String taskId): Task?
         +setMode(AppMode mode)
-        +createCanvas(Canvas canvas): boolean
+        +createCanvas(void): void
         +removeCanvas(String canvasId): boolean
         +updateCanvasTitle(String canvasId, String title): boolean
-        +updateCanvasPosition(String canvasId, int x, int y): boolean
+        +updateCanvasPosisiton(String canvasId, int x, int y): boolean
         +changeCanvas(String canvasId): boolean
-        +createTask(Task task): boolean
-        +updateTaskAttribute(String taskId, String title, String description, TaskStatus status): boolean
+        +createTask(void): boolean
+        +updateTaskTitle(String taskId, String title): boolean
+        +updateTaskDescription(String taskId, String description): boolean
+        +updateTaskStatus(String taskId, TaskStatus status): boolean
         +updateTaskPosition(String taskId, int x, int y): boolean
         +removeTask(String taskId): boolean
-        +createConnection(String parentTaskId, String childTaskId): boolean
+        +createConnection(void): boolean
         +removeConnection(String connectionId): boolean
-        +copyTask(String taskId): boolean
+        +copyTaskToClipboard(String taskId): boolean
         +pasteTask(void): boolean
         +undo(void): boolean
         +redo(void): boolean
-        +updateSearchText(String searchText)
+        +updateSearchText(String searchText): void
         +updateStatusFilter(TaskStatus? status): boolean
-        +setDepthFilter(String baseTaskId, int maxDepth): boolean
+        +setDepthFilter(String? baseTaskId, int maxDepth): boolean
         +clearDepthFilter(void)
-        +updateViewSettings(ViewSettings viewSettings): boolean
-        +save(AppState state): boolean
-        +restore(void): RestoreResult
+        +updateViewSettings(ViewSettings viewSettings): void
+        +save(void): boolean
+        +restore(void): boolean
     }
     class Canvas {
         -String id

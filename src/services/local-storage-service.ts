@@ -1,4 +1,4 @@
-import { AppState } from "../application/application";
+import { AppState } from "../application/application.js";
 
 // localStorageに保存するときのキー名（spec.mdで定義された名前）
 const STORAGE_KEY = "d4soft01.todoCanvas.state";

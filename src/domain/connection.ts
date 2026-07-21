@@ -1,6 +1,13 @@
 export class Connection {
-    id: string = "";
-    parentTaskId: string = "";
-    childTaskId: string = "";
-    createdAt = new Date();
+    id: string;
+    parentTaskId: string;
+    childTaskId: string;
+    createdAt: Date;
+
+    constructor(id: string, parentTaskId: string, childTaskId: string) {
+        this.id = id;
+        this.parentTaskId = parentTaskId;
+        this.childTaskId = childTaskId;
+        this.createdAt = new Date();
+    }
 }
