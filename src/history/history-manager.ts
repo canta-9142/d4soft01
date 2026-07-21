@@ -43,6 +43,15 @@ const cloneValue = <T>(value: T): T => {
     return value;
 };
 
+const createHistoryEntryFromState = (beforeState: AppState, afterState: AppState): HistoryEntry => {
+    return new HistoryEntry({
+        action: "custom",
+        description: "",
+        beforeState: cloneValue(beforeState),
+        afterState: cloneValue(afterState),
+    });
+};
+
 // 1つの操作に対応する履歴情報。Undo/Redo では beforeState / afterState を使って状態を切り替える。
 export class HistoryEntry {
     action: HistoryAction;
@@ -73,13 +82,20 @@ export class HistoryManager {
     private undoStack = new Array<HistoryEntry>();
     private redoStack = new Array<HistoryEntry>();
 
-    // 現在の AppState を基準に、操作単位の履歴を記録する。
-    public record = (state: AppState): void => {
-        const entry = new HistoryEntry({
-            beforeState: state,
-            afterState: state,
-        });
+    private isSameState = (left: AppState, right: AppState): boolean => {
+        return JSON.stringify(left) === JSON.stringify(right);
+    }
 
+    // 現在の AppState を履歴に記録する。直前の状態と比較して差分があればエントリを追加する。
+    public record = (afterState: AppState): void => {
+        const previousState = this.undoStack[this.undoStack.length - 1]?.afterState;
+        const beforeState = previousState ? cloneValue(previousState) : cloneValue(afterState);
+
+        if (previousState && this.isSameState(previousState, afterState)) {
+            return;
+        }
+
+        const entry = createHistoryEntryFromState(beforeState, cloneValue(afterState));
         this.undoStack.push(entry);
         if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
             this.undoStack.shift();
