@@ -34,6 +34,7 @@ export class EventController {
         document.querySelector("#newCanvasButton")?.addEventListener("click", this.createCanvas); // 新規キャンバス作成ボタン
         document.querySelector("#emptyCreateCanvasButton")?.addEventListener("click", this.createCanvas); // キャンバスがないときの新規キャンバス作成ボタン
         this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter()); // 新規タスク作成ボタン
+        this.renderer.editTaskButton.addEventListener("click", this.openSelectedTaskEditor); // 選択中タスクの編集ボタン
         this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode); // 接続モード切替ボタン
         this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle); // キャンバスタイトルの変更
         document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas); // キャンバスリストからキャンバスを選択して切替
@@ -236,13 +237,9 @@ export class EventController {
         if (!(target instanceof Element)) return;
         const taskId = target.closest<HTMLElement>(".task-card")?.dataset.taskId;
         if (taskId) {
-            const task = this.app.getTask(taskId);
-            if (!task) return;
             event.preventDefault();
             this.app.currentTaskId = taskId;
-            this.app.setMode(AppMode.EDIT);
-            this.renderer.openTaskDialog(task);
-            this.renderer.render();
+            this.openSelectedTaskEditor();
             return;
         }
         if (target.closest("[data-connection-id]")) return;
@@ -259,6 +256,15 @@ export class EventController {
             rect.top + rect.height / 2 - 45,
         );
         this.renderer.openTaskDialog();
+    }
+
+    private openSelectedTaskEditor = (): void => {
+        if (this.app.mode !== AppMode.NORMAL || !this.app.currentTaskId) return;
+        const task = this.app.getTask(this.app.currentTaskId);
+        if (!task) return;
+        this.app.setMode(AppMode.EDIT);
+        this.renderer.openTaskDialog(task);
+        this.renderer.render();
     }
 
     private saveTask = (event: SubmitEvent): void => {
@@ -281,9 +287,7 @@ export class EventController {
 
         const taskId = this.renderer.taskForm.dataset.taskId;
         if (taskId) {
-            const updated = this.app.updateTaskTitle(taskId, title)
-                && this.app.updateTaskDescription(taskId, descriptionInput.value)
-                && this.app.updateTaskStatus(taskId, status);
+            const updated = this.app.updateTask(taskId, title, descriptionInput.value, status);
             if (!updated) {
                 this.renderer.showTaskFormError("タスクを更新できませんでした");
                 return;
@@ -328,6 +332,14 @@ export class EventController {
         if (isEditingText) return;
 
         const modifier = event.ctrlKey || event.metaKey;
+        if (modifier
+            && event.key.toLowerCase() === "e"
+            && this.app.mode === AppMode.NORMAL
+            && this.app.currentTaskId) {
+            event.preventDefault();
+            this.openSelectedTaskEditor();
+            return;
+        }
         if (modifier && event.key.toLowerCase() === "x") {
             event.preventDefault();
             this.toggleConnectMode();

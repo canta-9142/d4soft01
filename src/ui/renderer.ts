@@ -15,6 +15,7 @@ export class Renderer {
     readonly taskLayer: HTMLElement;
     readonly canvasTitleInput: HTMLInputElement;
     readonly addTaskButton: HTMLButtonElement;
+    readonly editTaskButton: HTMLButtonElement;
     readonly connectModeButton: HTMLButtonElement;
     readonly menuPanel: HTMLElement;
     readonly taskDialog: HTMLDialogElement;
@@ -35,6 +36,7 @@ export class Renderer {
         this.taskLayer = this.required("#taskLayer", HTMLElement);
         this.canvasTitleInput = this.required("#canvasTitleInput", HTMLInputElement);
         this.addTaskButton = this.required("#addTaskButton", HTMLButtonElement);
+        this.editTaskButton = this.required("#editTaskButton", HTMLButtonElement);
         this.connectModeButton = this.required("#connectModeButton", HTMLButtonElement);
         this.menuPanel = this.required("#canvasMenu", HTMLElement);
         this.taskDialog = this.required("#taskDialog", HTMLDialogElement);
@@ -54,6 +56,10 @@ export class Renderer {
         this.canvasTitleInput.disabled = !hasCanvas;
         this.canvasTitleInput.value = canvas?.title ?? "";
         this.addTaskButton.disabled = !hasCanvas || this.app.mode !== AppMode.NORMAL;
+        this.editTaskButton.disabled = !hasCanvas
+            || this.app.mode !== AppMode.NORMAL
+            || !this.app.currentTaskId
+            || !this.app.getTask(this.app.currentTaskId);
         this.connectModeButton.disabled = !hasCanvas;
         this.connectModeButton.classList.toggle("is-active", this.app.mode === AppMode.CONNECT);
         this.connectModeButton.setAttribute("aria-pressed", String(this.app.mode === AppMode.CONNECT));
@@ -158,10 +164,12 @@ export class Renderer {
         const titleInput = this.required("#taskTitleInput", HTMLInputElement);
         const descriptionInput = this.required("#taskDescriptionInput", HTMLTextAreaElement);
         const statusInput = this.required("#taskStatusInput", HTMLSelectElement);
+        const submitButton = this.required("#taskSubmitButton", HTMLButtonElement);
         const error = this.required("#taskFormError", HTMLElement);
 
         this.taskForm.dataset.taskId = task?.id ?? "";
         title.textContent = task ? "タスクを編集" : "タスクを追加";
+        submitButton.textContent = task ? "変更を保存" : "追加";
         titleInput.value = task?.title ?? "";
         descriptionInput.value = task?.description ?? "";
         statusInput.value = task?.status ?? TaskStatus.NOTSTARTED;

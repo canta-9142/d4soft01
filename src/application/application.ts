@@ -161,6 +161,14 @@ export class Application {
         this.isDirty = true;
         return true;
     }
+    public updateTask = (taskId: string, title: string, description: string, status: TaskStatus): boolean => {
+        const task = findTaskById(this.state.canvases, taskId);
+        const normalizedTitle = title.trim();
+        if (!task || !normalizedTitle || !Object.values(TaskStatus).includes(status)) return false;
+        task.updateDetails(normalizedTitle, description, status);
+        this.isDirty = true;
+        return true;
+    }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
         const task = findTaskById(this.state.canvases, taskId);
         if (!task || !Number.isFinite(x) || !Number.isFinite(y)) return false;

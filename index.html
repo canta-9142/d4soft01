@@ -32,6 +32,7 @@
 
             <div class="toolbar-actions">
                 <button id="addTaskButton" class="button" type="button" disabled>＋ タスクを追加</button>
+                <button id="editTaskButton" class="button" type="button" title="選択中のタスクを編集 (Ctrl/Cmd+E)" disabled>タスクを編集</button>
                 <button id="connectModeButton" class="button" type="button" aria-pressed="false" disabled>接続を作成</button>
             </div>
         </header>
@@ -51,7 +52,7 @@
 
         <div id="message" class="message" role="status" hidden></div>
 
-        <!-- タスク追加ダイアログ -->
+        <!-- タスク追加・編集ダイアログ -->
         <dialog id="taskDialog" class="task-dialog">
             <form id="taskForm" method="dialog">
                 <h2 id="taskDialogTitle">タスクを追加</h2>
@@ -74,7 +75,7 @@
                 <p id="taskFormError" class="form-error" role="alert"></p>
                 <div class="dialog-actions">
                     <button id="taskCancelButton" class="button" type="button">キャンセル</button>
-                    <button class="button primary" type="submit">確定</button>
+                    <button id="taskSubmitButton" class="button primary" type="submit">追加</button>
                 </div>
             </form>
         </dialog>
