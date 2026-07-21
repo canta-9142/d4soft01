@@ -74,8 +74,12 @@ export class HistoryManager {
     private redoStack = new Array<HistoryEntry>();
 
     // 現在の AppState を基準に、操作単位の履歴を記録する。
-    public record = (state: AppState, entry: HistoryEntry): void => {
-        void state;
+    public record = (state: AppState): void => {
+        const entry = new HistoryEntry({
+            beforeState: state,
+            afterState: state,
+        });
+
         this.undoStack.push(entry);
         if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
             this.undoStack.shift();
@@ -105,3 +109,5 @@ export class HistoryManager {
         this.redoStack = [];
     }
 }
+
+
