@@ -43,6 +43,7 @@ const cloneValue = <T>(value: T): T => {
     return value;
 };
 
+// 1つの操作に対応する履歴情報。Undo/Redo では beforeState / afterState を使って状態を切り替える。
 export class HistoryEntry {
     action: HistoryAction;
     description: string;
@@ -67,11 +68,14 @@ export class HistoryEntry {
     }
 }
 
+// Undo/Redo の実行履歴を保持するサービス。各操作は HistoryEntry として保存し、スタック上で順に適用する。
 export class HistoryManager {
     private undoStack = new Array<HistoryEntry>();
     private redoStack = new Array<HistoryEntry>();
 
-    public record = (entry: HistoryEntry): void => {
+    // 現在の AppState を基準に、操作単位の履歴を記録する。
+    public record = (state: AppState, entry: HistoryEntry): void => {
+        void state;
         this.undoStack.push(entry);
         if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
             this.undoStack.shift();
@@ -79,20 +83,23 @@ export class HistoryManager {
         this.redoStack = [];
     }
 
-    public undo = (state: AppState): AppState | null => {
+    // 直前の操作を取り消し、その状態を返す。
+    public undo = (): AppState | null => {
         const entry = this.undoStack.pop();
         if (!entry) return null;
         this.redoStack.push(entry);
         return cloneValue(entry.beforeState);
     }
 
-    public redo = (state: AppState): AppState | null => {
+    // 取り消した操作をやり直し、その状態を返す。
+    public redo = (): AppState | null => {
         const entry = this.redoStack.pop();
         if (!entry) return null;
         this.undoStack.push(entry);
         return cloneValue(entry.afterState);
     }
 
+    // すべての履歴をクリアする。
     public clear = (): void => {
         this.undoStack = [];
         this.redoStack = [];

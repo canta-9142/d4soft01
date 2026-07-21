@@ -17,7 +17,7 @@ test("undo and redo return the recorded before and after states", () => {
     const afterState = new AppState("v2", [new Canvas("canvas-1", "Canvas 1")], "canvas-1");
     afterState.canvases[0]?.tasks.push(task);
 
-    manager.record(new HistoryEntry({
+    manager.record(initialState, new HistoryEntry({
         action: "createTask",
         description: "タスク作成",
         targetId: task.id,
@@ -28,11 +28,11 @@ test("undo and redo return the recorded before and after states", () => {
         affectedCanvasIds: ["canvas-1"]
     }));
 
-    const undoneState = manager.undo(initialState);
+    const undoneState = manager.undo();
     assert.ok(undoneState !== null);
     assert.equal(undoneState.canvases[0]?.tasks.length, 0);
 
-    const redoneState = manager.redo(initialState);
+    const redoneState = manager.redo();
     assert.ok(redoneState !== null);
     assert.equal(redoneState.canvases[0]?.tasks[0]?.title, "Task A");
 });
