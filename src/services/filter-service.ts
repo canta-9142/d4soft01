@@ -15,7 +15,7 @@ export type FilterCriteria = {
         readonly baseTaskId: string;
         readonly maxDepth: number;
     } | null;
-}
+};
 
 export type FilterResult = {
     readonly tasks: readonly Task[];
@@ -23,7 +23,7 @@ export type FilterResult = {
 };
 
 export class FilterService {
-    private constructor() {};
+    private constructor() {}
 
     public static apply(
         source: FilterSource,
@@ -60,7 +60,13 @@ export class FilterService {
         if (keyword === null) {
             return true;
         }
-        const normalized = keyword.toLowerCase();
+
+        const trimmed = keyword.trim();
+        if (trimmed === "") {
+            return true;
+        }
+
+        const normalized = trimmed.toLowerCase();
         return (
             task.title.toLowerCase().includes(normalized) ||
             task.description.toLowerCase().includes(normalized)
