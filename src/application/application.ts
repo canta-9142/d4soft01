@@ -15,10 +15,10 @@ import { HistoryManager } from "../history/history-manager.js";
 export class AppState {
     version: string;
     canvases: Array<Canvas>;
-    currentCanvasId: string;
+    currentCanvasId: string | null;
     viewSettings: ViewSettings;
 
-    constructor(canvases: Array<Canvas> = [], currentCanvasId: string = "", viewSettings: ViewSettings = new ViewSettings()) {
+    constructor(canvases: Array<Canvas> = [], currentCanvasId: string | null = null, viewSettings: ViewSettings = new ViewSettings()) {
         this.version = "1";
         this.canvases = canvases;
         this.currentCanvasId = currentCanvasId;
@@ -85,7 +85,7 @@ export class Application {
         if (this.state.currentCanvasId === canvasId) {
             this.state.currentCanvasId = this.state.canvases[index]?.id
                 ?? this.state.canvases[index - 1]?.id
-                ?? "";
+                ?? null;
         }
         this.currentTaskId = null;
         this.currentConnectionId = null;

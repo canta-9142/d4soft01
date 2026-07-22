@@ -3,7 +3,7 @@ import { Canvas } from "../domain/canvas.js";
 import { Task } from "../domain/task.js";
 import { Connection } from "../domain/connection.js";
 import { ViewSettings } from "../domain/view-settings.js";
-import { validateAppStateForSave } from "./validators.js";
+import { validateAppStateForSave } from "../validation/validators.js";
 
 // localStorageに保存するときのキー名（spec.mdで定義された名前）
 const STORAGE_KEY = "d4soft01.todoCanvas.state";
@@ -66,9 +66,8 @@ export class LocalStorageService {
             const canvases = parsed.canvases.map(LocalStorageService.restoreCanvas);
             const viewSettings = LocalStorageService.restoreViewSettings(parsed.viewSettings);
             const state = new AppState(
-                parsed.version,
                 canvases,
-                parsed.currentCanvasId ?? "",
+                parsed.currentCanvasId ?? null,
                 viewSettings
             );
 

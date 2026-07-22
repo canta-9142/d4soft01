@@ -3,7 +3,7 @@ import { Task } from "./task.js";
 
 export const findCanvasById = (
     canvases: readonly Canvas[],
-    canvasId: string,
+    canvasId: string | null,
 ): Canvas | undefined => {
     return canvases.find(canvas => canvas.id === canvasId);
 };

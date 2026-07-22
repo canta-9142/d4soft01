@@ -154,10 +154,9 @@ export function validateAppStateForSave(state: unknown): boolean {
     if (!hasNoDuplicateIds(allConnectionIds)) return false;
 
     // currentCanvasIdの整合性チェック
-    // (AppState.currentCanvasIdはstring型でnullを許容しないため、
-    //  キャンバスが無ければ空文字、あれば実在するキャンバスを指していること)
+    // (キャンバスが無ければnull、あれば実在するキャンバスを指していること)
     if (canvases.length === 0) {
-        if (state.currentCanvasId !== "") return false;
+        if (state.currentCanvasId !== null) return false;
     } else {
         if (!isNonBlankString(state.currentCanvasId)) return false;
         if (!canvasIds.includes(state.currentCanvasId)) return false;
