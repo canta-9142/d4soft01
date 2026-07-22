@@ -2,141 +2,88 @@ import { AppState } from "../application/application.js";
 
 export const MAX_HISTORY_ENTRIES = 50;
 
-// 差分を表す型。AppState の一部変更を表現できるようにする。
-export type AppStateDiff = Partial<AppState> & Record<string, unknown>;
+// Undo/Redo の対象外（Undoしても巻き戻さず、最新値を維持する）プロパティ
+const IGNORED_STATE_KEYS: Array<keyof AppState | string> = [
+    "searchQuery",
+    "filter",
+    "activeCanvasId"
+];
 
-// HistoryEntry が保持するデータの定義。
-interface HistoryEntryInit {
-    description?: string;
-    undoDiff: AppStateDiff;
-    redoDiff: AppStateDiff;
-    createdAt?: Date;
-}
-
-const cloneValue = <T>(value: T): T => {
+/**
+ * クラスのプロトタイプ、メソッド、配列、Date などの構造を壊さずに完全な防衛的コピー（Defensive Copy）を行う
+ */
+export const cloneValue = <T>(value: T): T => {
     if (value === null || value === undefined) return value;
     if (value instanceof Date) return new Date(value.getTime()) as T;
     if (Array.isArray(value)) return value.map(item => cloneValue(item)) as T;
+
     if (typeof value === "object") {
         const source = value as Record<string, unknown>;
-        const clone = Object.create(Object.getPrototypeOf(value));
-        for (const [key, child] of Object.entries(source)) {
-            clone[key] = cloneValue(child);
+        const proto = Object.getPrototypeOf(value);
+        const clone = Object.create(proto);
+
+        for (const key of Reflect.ownKeys(source)) {
+            const descriptor = Object.getOwnPropertyDescriptor(source, key);
+            if (descriptor) {
+                if ("value" in descriptor && descriptor.value !== undefined) {
+                    descriptor.value = cloneValue(descriptor.value);
+                }
+                Object.defineProperty(clone, key, descriptor);
+            }
         }
         return clone as T;
     }
     return value;
 };
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-    return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
-};
+/**
+ * 2つの AppState が（Undo対象プロパティにおいて）等しいか判定する
+ */
+const isSameState = (left: AppState, right: AppState): boolean => {
+    const cleanLeft = cloneValue(left) as Record<string, unknown>;
+    const cleanRight = cloneValue(right) as Record<string, unknown>;
 
-const isEqual = (left: unknown, right: unknown): boolean => {
-    return JSON.stringify(left) === JSON.stringify(right);
-};
-
-// 2つの AppState を比較して差分を抽出する。
-const calculateDiff = (base: unknown, target: unknown): unknown => {
-    if (isPlainObject(base) && isPlainObject(target)) {
-        const diff: Record<string, unknown> = {};
-        const keys = new Set([...Object.keys(base), ...Object.keys(target)]);
-
-        for (const key of keys) {
-            if (!(key in base)) {
-                diff[key] = cloneValue(target[key]);
-                continue;
-            }
-            if (!(key in target)) {
-                diff[key] = undefined;
-                continue;
-            }
-
-            const nestedDiff = calculateDiff(base[key], target[key]);
-            if (nestedDiff !== undefined) {
-                diff[key] = nestedDiff;
-            }
-        }
-
-        return Object.keys(diff).length > 0 ? diff : undefined;
+    for (const key of IGNORED_STATE_KEYS) {
+        delete cleanLeft[key];
+        delete cleanRight[key];
     }
 
-    if (Array.isArray(base) || Array.isArray(target)) {
-        return isEqual(base, target) ? undefined : cloneValue(target);
-    }
-
-    return isEqual(base, target) ? undefined : cloneValue(target);
+    return JSON.stringify(cleanLeft) === JSON.stringify(cleanRight);
 };
 
-// 差分を現在の状態に適用して、新しい AppState を返す。
-const applyDiff = (currentState: AppState, diff: AppStateDiff): AppState => {
-    const nextState = cloneValue(currentState) as unknown as Record<string, unknown>;
-
-    const applyPatch = (target: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> => {
-        const result = cloneValue(target);
-        for (const [key, value] of Object.entries(patch)) {
-            if (value === undefined) {
-                delete result[key];
-                continue;
-            }
-
-            const currentValue = result[key];
-            if (isPlainObject(value) && isPlainObject(currentValue)) {
-                result[key] = applyPatch(currentValue as Record<string, unknown>, value as Record<string, unknown>);
-            } else {
-                result[key] = cloneValue(value);
-            }
-        }
-        return result;
-    };
-
-    return applyPatch(nextState, diff as Record<string, unknown>) as unknown as AppState;
-};
-
-const createHistoryEntryFromStates = (beforeState: AppState, afterState: AppState): HistoryEntry => {
-    return new HistoryEntry({
-        undoDiff: (calculateDiff(afterState, beforeState) ?? {}) as AppStateDiff,
-        redoDiff: (calculateDiff(beforeState, afterState) ?? {}) as AppStateDiff,
-    });
-};
-
-// 1つの操作に対応する履歴情報（差分のみを保持する）。
 export class HistoryEntry {
     public description: string;
-    public undoDiff: AppStateDiff;
-    public redoDiff: AppStateDiff;
+    public snapshot: AppState;
     public createdAt: Date;
 
-    constructor(init: HistoryEntryInit) {
-        this.description = init.description ?? "";
-        this.undoDiff = init.undoDiff;
-        this.redoDiff = init.redoDiff;
-        this.createdAt = init.createdAt ?? new Date();
+    constructor(snapshot: AppState, description = "") {
+        this.description = description;
+        this.snapshot = cloneValue(snapshot);
+        this.createdAt = new Date();
     }
 }
 
-// Undo/Redo の履歴管理を行うクラス。
+/**
+ * Undo/Redo の履歴管理クラス
+ */
 export class HistoryManager {
     private undoStack = new Array<HistoryEntry>();
     private redoStack = new Array<HistoryEntry>();
-
-    // 差分比較のために、最新の全体状態を内部で保持する。
     private currentTrackingState: AppState | null = null;
 
-    private isSameState = (left: AppState, right: AppState): boolean => {
-        return JSON.stringify(left) === JSON.stringify(right);
-    };
-
-    // 現在の状態を履歴に記録する。
+    /**
+     * 最新のドメイン状態（AppState）を履歴に記録する
+     */
     public record = (afterState: AppState): void => {
-        const previousState = this.currentTrackingState;
-
-        if (previousState && this.isSameState(previousState, afterState)) {
+        // 同一状態（または対象外プロパティのみの変更）の場合は記録しない
+        if (this.currentTrackingState && isSameState(this.currentTrackingState, afterState)) {
+            // UI状態（searchQuery等）の最新化のみ更新して終了
+            this.currentTrackingState = cloneValue(afterState);
             return;
         }
 
-        if (previousState) {
-            const entry = createHistoryEntryFromStates(previousState, afterState);
+        if (this.currentTrackingState) {
+            const entry = new HistoryEntry(this.currentTrackingState);
             this.undoStack.push(entry);
 
             if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
@@ -145,39 +92,75 @@ export class HistoryManager {
         }
 
         this.currentTrackingState = cloneValue(afterState);
-        this.redoStack = [];
+        this.redoStack = []; // 新しい操作が行われたため Redo スタックをクリア
     };
 
-    // Undo を行い、1つ前の状態を返す。
-    public undo = (): AppState | null => {
+    /**
+     * Undo を実行し、前の状態を復元して返す
+     * @param currentState 呼び出し時点の現行状態（searchQuery等の最新値を保持するため）
+     */
+    public undo = (currentState?: AppState): AppState | null => {
         const entry = this.undoStack.pop();
         if (!entry || !this.currentTrackingState) return null;
 
-        this.redoStack.push(entry);
-        const previousState = applyDiff(this.currentTrackingState, entry.undoDiff);
-        this.currentTrackingState = previousState;
+        // 現在の状態を Redo スタックへ退避
+        this.redoStack.push(new HistoryEntry(this.currentTrackingState));
 
-        return previousState;
+        // スナップショットから復元
+        const previousState = cloneValue(entry.snapshot);
+
+        // 現行の UI 状態（対象外プロパティ）があればそれを維持・マージする
+        const latestUIState = currentState ?? this.currentTrackingState;
+        if (latestUIState) {
+            for (const key of IGNORED_STATE_KEYS) {
+                if (key in latestUIState) {
+                    (previousState as Record<string, unknown>)[key] = cloneValue(
+                        (latestUIState as Record<string, unknown>)[key]
+                    );
+                }
+            }
+        }
+
+        this.currentTrackingState = cloneValue(previousState);
+        return cloneValue(previousState);
     };
 
-    // Redo を行い、1つ後の状態を返す。
-    public redo = (): AppState | null => {
+    /**
+     * Redo を実行し、後の状態を復元して返す
+     * @param currentState 呼び出し時点の現行状態
+     */
+    public redo = (currentState?: AppState): AppState | null => {
         const entry = this.redoStack.pop();
         if (!entry || !this.currentTrackingState) return null;
 
-        this.undoStack.push(entry);
-        const nextState = applyDiff(this.currentTrackingState, entry.redoDiff);
-        this.currentTrackingState = nextState;
+        // 現在の状態を Undo スタックへ退避
+        this.undoStack.push(new HistoryEntry(this.currentTrackingState));
 
-        return nextState;
+        // スナップショットから復元
+        const nextState = cloneValue(entry.snapshot);
+
+        // 現行の UI 状態（対象外プロパティ）があればそれを維持・マージする
+        const latestUIState = currentState ?? this.currentTrackingState;
+        if (latestUIState) {
+            for (const key of IGNORED_STATE_KEYS) {
+                if (key in latestUIState) {
+                    (nextState as Record<string, unknown>)[key] = cloneValue(
+                        (latestUIState as Record<string, unknown>)[key]
+                    );
+                }
+            }
+        }
+
+        this.currentTrackingState = cloneValue(nextState);
+        return cloneValue(nextState);
     };
 
-    // すべての履歴をクリアする。
+    /**
+     * すべての履歴をクリアする
+     */
     public clear = (): void => {
         this.undoStack = [];
         this.redoStack = [];
         this.currentTrackingState = null;
     };
 }
-
-
