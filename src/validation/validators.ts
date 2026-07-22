@@ -34,10 +34,17 @@ export function isValidTaskStatus(value: unknown): value is TaskStatus {
     );
 }
 
-// Dateとして正しく解釈できる値(Dateインスタンス、またはISO文字列など)かどうかを判定する
+// Date.prototype.toISOString()が出力する形式(YYYY-MM-DDTHH:mm:ss.sssZ)にのみマッチする正規表現
+const ISO_8601_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+// Dateとして正しく解釈できる値かどうかを判定する
+// 文字列の場合はtoISOString()相当のUTC ISO 8601形式のみを許容する
+// ("July 22, 2026"のような自然文形式や、new Date()が緩く解釈できてしまう表記は弾く)
 function isValidDateValue(value: unknown): boolean {
     if (value instanceof Date) return !Number.isNaN(value.getTime());
-    if (typeof value === "string") return !Number.isNaN(new Date(value).getTime());
+    if (typeof value === "string" && ISO_8601_UTC_PATTERN.test(value)) {
+        return !Number.isNaN(new Date(value).getTime());
+    }
     return false;
 }
 
@@ -154,9 +161,10 @@ export function validateAppStateForSave(state: unknown): boolean {
     if (!hasNoDuplicateIds(allConnectionIds)) return false;
 
     // currentCanvasIdの整合性チェック
-    // (キャンバスが無ければnull、あれば実在するキャンバスを指していること)
+    // (AppState.currentCanvasIdはstring型でnullを許容しないため、
+    //  キャンバスが無ければ空文字、あれば実在するキャンバスを指していること)
     if (canvases.length === 0) {
-        if (state.currentCanvasId !== null) return false;
+        if (state.currentCanvasId !== "") return false;
     } else {
         if (!isNonBlankString(state.currentCanvasId)) return false;
         if (!canvasIds.includes(state.currentCanvasId)) return false;
