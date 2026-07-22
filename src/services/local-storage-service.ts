@@ -66,10 +66,17 @@ export class LocalStorageService {
             const canvases = parsed.canvases.map(LocalStorageService.restoreCanvas);
             const viewSettings = LocalStorageService.restoreViewSettings(parsed.viewSettings);
             const state = new AppState(
+                parsed.version,
                 canvases,
-                parsed.currentCanvasId ?? null,
+                parsed.currentCanvasId ?? "",
                 viewSettings
             );
+
+            // 復元したデータがspec.md 5.9節の保存条件を満たすかどうかを検証する
+            // (localStorageの中身が手動で書き換えられていた場合など、壊れた状態のまま復元してしまうことを防ぐ)
+            if (!validateAppStateForSave(state)) {
+                return { success: false, state: null, errorMessage: "保存データの内容が不正です" };
+            }
 
             return { success: true, state, errorMessage: null };
         } catch (e) {
