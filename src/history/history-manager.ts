@@ -1,18 +1,10 @@
-import { Connection } from "../domain/connection.js";
-import { Canvas } from "../domain/canvas.js";
+import type { AppState } from "../application/application.js";
 
 export const MAX_HISTORY_ENTRIES = 50;
 
-
-
 export class HistoryEntry {
-    type: string = "";
-    targetId: string = "";
-    canvasId: string | null = null;
-    beforeState: unknown | null = null;
-    afterState: unknown | null = null;
-    affectedConnections: Array<Connection> | null = null;
-    affectedCanvas: Canvas | null = null;
+    // A snapshot of the application state at the time the history event was recorded.
+    snapshot: AppState | null = null;
     createdAt = new Date();
 }
 
@@ -20,7 +12,16 @@ export class HistoryManager {
     private undoStack = new Array<HistoryEntry>();
     private redoStack = new Array<HistoryEntry>();
 
-    public record = (entry: HistoryEntry): void => {
+    // Convert the current application state into a history entry.
+    private toHistoryEntry = (state: AppState): HistoryEntry => {
+        const entry = new HistoryEntry();
+        entry.snapshot = state;
+        return entry;
+    }
+
+    // Record a new snapshot of the application state.
+    public record = (state: AppState): void => {
+        const entry = this.toHistoryEntry(state);
         this.undoStack.push(entry);
         if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
             this.undoStack.shift();
@@ -28,6 +29,7 @@ export class HistoryManager {
         this.redoStack = [];
     }
 
+    // Undo returns the latest history entry and moves it to the redo stack.
     public undo = (): HistoryEntry | null => {
         const entry = this.undoStack.pop();
         if (entry) {
@@ -36,6 +38,7 @@ export class HistoryManager {
         return entry || null;
     }
 
+    // Redo returns the latest undone entry and moves it back to the undo stack.
     public redo = (): HistoryEntry | null => {
         const entry = this.redoStack.pop();
         if (entry) {
