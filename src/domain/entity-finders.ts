@@ -24,9 +24,25 @@ export const findCanvasByConnectionId = (
     );
 };
 
-export const findTaskById = (
+export function findTaskById(
     canvases: readonly Canvas[],
     taskId: string,
-): Task | undefined => {
-    return findCanvasByTaskId(canvases, taskId)?.tasks.find(task => task.id === taskId);
-};
+): Task | undefined;
+export function findTaskById(
+    tasks: readonly Task[],
+    taskId: string,
+): Task | undefined;
+export function findTaskById(
+    source: readonly Canvas[] | readonly Task[],
+    taskId: string,
+): Task | undefined {
+    for (const item of source) {
+        if ("tasks" in item) {
+            const task = item.tasks.find(candidate => candidate.id === taskId);
+            if (task) return task;
+        } else if (item.id === taskId) {
+            return item;
+        }
+    }
+    return undefined;
+}
