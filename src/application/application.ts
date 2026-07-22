@@ -18,8 +18,8 @@ export class AppState {
     currentCanvasId: string;
     viewSettings: ViewSettings;
 
-    constructor(version: string, canvases: Array<Canvas> = [], currentCanvasId: string = "", viewSettings: ViewSettings = new ViewSettings()) {
-        this.version = version;
+    constructor(canvases: Array<Canvas> = [], currentCanvasId: string = "", viewSettings: ViewSettings = new ViewSettings()) {
+        this.version = "1";
         this.canvases = canvases;
         this.currentCanvasId = currentCanvasId;
         this.viewSettings = viewSettings;
@@ -28,7 +28,7 @@ export class AppState {
 
 export class Application {
     mode:AppMode = AppMode.NORMAL;
-    state = new AppState(this.generateVersionId());
+    state = new AppState();
     currentTaskId: string | null = null;
     currentConnectionId: string | null = null;
     connectionParentTaskId: string | null = null;
@@ -36,9 +36,6 @@ export class Application {
     historyManager = new HistoryManager();
     isDirty: boolean = false;
 
-    private generateVersionId(): string {
-        return "v-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
     private generateCanvasId(): string {
         return "canvas-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
     }
