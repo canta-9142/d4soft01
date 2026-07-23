@@ -1,90 +1,60 @@
 import { Canvas } from "../domain/canvas.js";
 import { Connection } from "../domain/connection.js";
 import { findCanvasById, findTaskById } from "../domain/entity-finders.js";
-import { TaskStatus } from "../domain/enums.js";
 import { Task } from "../domain/task.js";
-import type {
-    CanvasContextSnapshot,
-    CanvasDeleteHistoryChange,
-    CanvasSnapshot,
-    ConnectionCreateHistoryChange,
-    ConnectionDeleteHistoryChange,
-    ConnectionSnapshot,
-    DepthFilterSnapshot,
-    HistoryChange,
-    HistoryTarget,
-    SelectionSnapshot,
-    TaskCreateHistoryChange,
-    TaskDeleteHistoryChange,
-    TaskEditHistoryChange,
-    TaskMoveHistoryChange,
-    TaskPasteHistoryChange,
-    TaskSnapshot,
-    ViewSettingsSnapshot,
+import {
+    createCanvasContextSnapshot,
+    createDepthFilterSnapshot,
+    createSelectionSnapshot,
+    HistoryOperationType,
+    type CanvasContextSnapshot,
+    type CanvasDeleteHistoryChange,
+    type CanvasSnapshot,
+    type ConnectionCreateHistoryChange,
+    type ConnectionDeleteHistoryChange,
+    type ConnectionSnapshot,
+    type DepthFilterSnapshot,
+    type HistoryChange,
+    type HistoryTarget,
+    type HistoryTransition,
+    type SelectionSnapshot,
+    type TaskAdditionHistoryChange,
+    type TaskDeleteHistoryChange,
+    type TaskSnapshot,
+    type TaskUpdateHistoryChange,
 } from "./history-types.js";
-import { HistoryOperationType } from "./history-types.js";
 
 export * from "./history-types.js";
 
 export const MAX_HISTORY_ENTRIES = 50;
-
-type TaskAdditionChange = TaskCreateHistoryChange | TaskPasteHistoryChange;
 type HistoryDirection = "undo" | "redo";
 
-export class HistoryEntry<TChange extends HistoryChange = HistoryChange> {
-    public readonly change: TChange;
-    public readonly createdAt: string;
+export class HistoryEntry {
+    readonly change: HistoryChange;
+    readonly createdAt: string;
 
-    constructor(change: TChange, createdAt: string = new Date().toISOString()) {
-        this.change = structuredClone(change) as TChange;
+    constructor(change: HistoryChange, createdAt = new Date().toISOString()) {
+        this.change = structuredClone(change) as HistoryChange;
         this.createdAt = createdAt;
-    }
-
-    public get operationType(): HistoryOperationType {
-        return this.change.type;
-    }
-
-    public get canvasId(): string {
-        return this.change.canvasId;
-    }
-
-    public get targetId(): string {
-        return this.change.targetId;
     }
 }
 
 export class HistoryManager {
-    private readonly undoStack: Array<HistoryEntry> = [];
-    private readonly redoStack: Array<HistoryEntry> = [];
+    private readonly undoStack: HistoryEntry[] = [];
+    private readonly redoStack: HistoryEntry[] = [];
 
     public record(change: HistoryChange): void {
         this.undoStack.push(new HistoryEntry(change));
-        if (this.undoStack.length > MAX_HISTORY_ENTRIES) {
-            this.undoStack.shift();
-        }
+        if (this.undoStack.length > MAX_HISTORY_ENTRIES) this.undoStack.shift();
         this.redoStack.length = 0;
     }
 
     public undo(target: HistoryTarget): boolean {
-        const entry = this.undoStack.at(-1);
-        if (!entry || !this.applyHistoryChange(target, entry.change, "undo")) {
-            return false;
-        }
-
-        this.undoStack.pop();
-        this.redoStack.push(entry);
-        return true;
+        return this.moveHistory(this.undoStack, this.redoStack, target, "undo");
     }
 
     public redo(target: HistoryTarget): boolean {
-        const entry = this.redoStack.at(-1);
-        if (!entry || !this.applyHistoryChange(target, entry.change, "redo")) {
-            return false;
-        }
-
-        this.redoStack.pop();
-        this.undoStack.push(entry);
-        return true;
+        return this.moveHistory(this.redoStack, this.undoStack, target, "redo");
     }
 
     public canUndo(): boolean {
@@ -100,6 +70,19 @@ export class HistoryManager {
         this.redoStack.length = 0;
     }
 
+    private moveHistory(
+        source: HistoryEntry[],
+        destination: HistoryEntry[],
+        target: HistoryTarget,
+        direction: HistoryDirection,
+    ): boolean {
+        const entry = source.at(-1);
+        if (!entry || !this.applyHistoryChange(target, entry.change, direction)) return false;
+        source.pop();
+        destination.push(entry);
+        return true;
+    }
+
     private applyHistoryChange(
         target: HistoryTarget,
         change: HistoryChange,
@@ -110,9 +93,8 @@ export class HistoryManager {
             case HistoryOperationType.TaskPaste:
                 return this.applyTaskAddition(target, change, direction);
             case HistoryOperationType.TaskEdit:
-                return this.applyTaskEdit(target, change, direction);
             case HistoryOperationType.TaskMove:
-                return this.applyTaskMove(target, change, direction);
+                return this.applyTaskUpdate(target, change, direction);
             case HistoryOperationType.TaskDelete:
                 return this.applyTaskDelete(target, change, direction);
             case HistoryOperationType.ConnectionCreate:
@@ -126,19 +108,19 @@ export class HistoryManager {
 
     private applyTaskAddition(
         target: HistoryTarget,
-        change: TaskAdditionChange,
+        change: TaskAdditionHistoryChange,
         direction: HistoryDirection,
     ): boolean {
         const canvas = findCanvasById(target.state.canvases, change.canvasId);
         if (!canvas) return false;
+        const [selectionFrom, selectionTo] = this.transition(change.selection, direction);
+        const restoreSelection = target.state.currentCanvasId === change.canvasId
+            && this.matches(createSelectionSnapshot(target), selectionFrom);
 
         if (direction === "undo") {
-            const taskIndex = canvas.tasks.findIndex(task => task.id === change.targetId);
-            if (taskIndex < 0) return false;
-            const restoreSelection = target.state.currentCanvasId === change.canvasId
-                && this.selectionEquals(target, change.nextSelection);
-
-            canvas.tasks.splice(taskIndex, 1);
+            const index = canvas.tasks.findIndex(task => task.id === change.targetId);
+            if (index < 0) return false;
+            canvas.tasks.splice(index, 1);
             const removedConnectionIds = new Set(
                 canvas.connections
                     .filter(connection => connection.parentTaskId === change.targetId
@@ -146,48 +128,29 @@ export class HistoryManager {
                     .map(connection => connection.id),
             );
             canvas.connections = canvas.connections.filter(connection => !removedConnectionIds.has(connection.id));
-
-            if (restoreSelection) {
-                this.restoreSelection(target, change.previousSelection);
-            } else {
-                this.clearInvalidSelection(target, change.targetId, removedConnectionIds);
-            }
+            if (restoreSelection) this.restoreSelection(target, selectionTo);
+            else this.clearInvalidSelection(target, new Set([change.targetId]), removedConnectionIds);
             return true;
         }
 
         if (findTaskById(target.state.canvases, change.targetId)
-            || !this.isInsertionIndex(change.taskIndex, canvas.tasks.length)) {
-            return false;
-        }
-        const restoreSelection = target.state.currentCanvasId === change.canvasId
-            && this.selectionEquals(target, change.previousSelection);
-        canvas.tasks.splice(change.taskIndex, 0, this.restoreTask(change.task));
-        if (restoreSelection) this.restoreSelection(target, change.nextSelection);
+            || !this.isInsertionIndex(change.task.index, canvas.tasks.length)) return false;
+        canvas.tasks.splice(change.task.index, 0, this.restoreTask(change.task.value));
+        if (restoreSelection) this.restoreSelection(target, selectionTo);
         return true;
     }
 
-    private applyTaskEdit(
+    private applyTaskUpdate(
         target: HistoryTarget,
-        change: TaskEditHistoryChange,
+        change: TaskUpdateHistoryChange,
         direction: HistoryDirection,
     ): boolean {
-        return this.restoreExistingTask(
-            target,
-            change.canvasId,
-            direction === "undo" ? change.previousTask : change.nextTask,
-        );
-    }
-
-    private applyTaskMove(
-        target: HistoryTarget,
-        change: TaskMoveHistoryChange,
-        direction: HistoryDirection,
-    ): boolean {
-        return this.restoreExistingTask(
-            target,
-            change.canvasId,
-            direction === "undo" ? change.previousTask : change.nextTask,
-        );
+        const canvas = findCanvasById(target.state.canvases, change.canvasId);
+        const snapshot = this.transition(change.task, direction)[1];
+        const task = canvas?.tasks.find(candidate => candidate.id === snapshot.id);
+        if (!task) return false;
+        this.assignTaskSnapshot(task, snapshot);
+        return true;
     }
 
     private applyTaskDelete(
@@ -197,54 +160,41 @@ export class HistoryManager {
     ): boolean {
         const canvas = findCanvasById(target.state.canvases, change.canvasId);
         if (!canvas) return false;
+        const [selectionFrom, selectionTo] = this.transition(change.selection, direction);
+        const [depthFrom, depthTo] = this.transition(change.depthFilter, direction);
+        const restoreSelection = target.state.currentCanvasId === change.canvasId
+            && this.matches(createSelectionSnapshot(target), selectionFrom);
+        const restoreDepth = this.matches(createDepthFilterSnapshot(target.state.viewSettings), depthFrom);
 
         if (direction === "undo") {
-            if (findTaskById(target.state.canvases, change.targetId)
-                || !this.isInsertionIndex(change.taskIndex, canvas.tasks.length)
-                || !this.canRestoreConnections(target, canvas.id, change)) {
-                return false;
-            }
-            const restoreSelection = target.state.currentCanvasId === change.canvasId
-                && this.selectionEquals(target, change.nextSelection);
-            const restoreDepthFilter = this.depthFilterEquals(
-                target.state.viewSettings,
-                change.nextDepthFilter,
+            const existingConnectionIds = new Set(
+                target.state.canvases.flatMap(item => item.connections.map(connection => connection.id)),
             );
-
-            canvas.tasks.splice(change.taskIndex, 0, this.restoreTask(change.task));
-            for (const removed of [...change.removedConnections].sort((a, b) => a.index - b.index)) {
-                canvas.connections.splice(removed.index, 0, this.restoreConnection(removed.connection));
+            if (findTaskById(target.state.canvases, change.targetId)
+                || !this.isInsertionIndex(change.task.index, canvas.tasks.length)
+                || change.connections.some(item => existingConnectionIds.has(item.value.id))) return false;
+            canvas.tasks.splice(change.task.index, 0, this.restoreTask(change.task.value));
+            for (const item of [...change.connections].sort((a, b) => a.index - b.index)) {
+                canvas.connections.splice(item.index, 0, this.restoreConnection(item.value));
             }
-            if (restoreSelection) this.restoreSelection(target, change.previousSelection);
-            if (restoreDepthFilter) {
-                this.restoreDepthFilter(target, change.previousDepthFilter);
-            }
+            if (restoreSelection) this.restoreSelection(target, selectionTo);
+            if (restoreDepth) this.restoreDepthFilter(target, depthTo);
             return true;
         }
 
-        const taskIndex = canvas.tasks.findIndex(task => task.id === change.targetId);
-        if (taskIndex < 0) return false;
-        const restoreSelection = target.state.currentCanvasId === change.canvasId
-            && this.selectionEquals(target, change.previousSelection);
-        const restoreDepthFilter = this.depthFilterEquals(
-            target.state.viewSettings,
-            change.previousDepthFilter,
-        );
+        const index = canvas.tasks.findIndex(task => task.id === change.targetId);
+        if (index < 0) return false;
         const removedConnectionIds = new Set(
             canvas.connections
                 .filter(connection => connection.parentTaskId === change.targetId
                     || connection.childTaskId === change.targetId)
                 .map(connection => connection.id),
         );
-
-        canvas.tasks.splice(taskIndex, 1);
+        canvas.tasks.splice(index, 1);
         canvas.connections = canvas.connections.filter(connection => !removedConnectionIds.has(connection.id));
-        if (restoreSelection) {
-            this.restoreSelection(target, change.nextSelection);
-        } else {
-            this.clearInvalidSelection(target, change.targetId, removedConnectionIds);
-        }
-        if (restoreDepthFilter) this.restoreDepthFilter(target, change.nextDepthFilter);
+        if (restoreSelection) this.restoreSelection(target, selectionTo);
+        else this.clearInvalidSelection(target, new Set([change.targetId]), removedConnectionIds);
+        if (restoreDepth) this.restoreDepthFilter(target, depthTo);
         return true;
     }
 
@@ -255,14 +205,12 @@ export class HistoryManager {
     ): boolean {
         const canvas = findCanvasById(target.state.canvases, change.canvasId);
         if (!canvas) return false;
-        if (direction === "undo") {
-            const index = canvas.connections.findIndex(connection => connection.id === change.targetId);
-            if (index < 0) return false;
-            canvas.connections.splice(index, 1);
-            if (target.currentConnectionId === change.targetId) target.currentConnectionId = null;
-            return true;
-        }
-        return this.insertConnection(target, canvas.id, change.connection, change.connectionIndex);
+        if (direction === "redo") return this.insertConnection(target, canvas, change.connection);
+        const index = canvas.connections.findIndex(connection => connection.id === change.targetId);
+        if (index < 0) return false;
+        canvas.connections.splice(index, 1);
+        if (target.currentConnectionId === change.targetId) target.currentConnectionId = null;
+        return true;
     }
 
     private applyConnectionDelete(
@@ -272,24 +220,19 @@ export class HistoryManager {
     ): boolean {
         const canvas = findCanvasById(target.state.canvases, change.canvasId);
         if (!canvas) return false;
-        if (direction === "undo") {
-            const restoreSelection = target.state.currentCanvasId === change.canvasId
-                && this.selectionEquals(target, change.nextSelection);
-            if (!this.insertConnection(target, canvas.id, change.connection, change.connectionIndex)) {
-                return false;
-            }
-            if (restoreSelection) this.restoreSelection(target, change.previousSelection);
-            return true;
-        }
-
-        const index = canvas.connections.findIndex(connection => connection.id === change.targetId);
-        if (index < 0) return false;
+        const [selectionFrom, selectionTo] = this.transition(change.selection, direction);
         const restoreSelection = target.state.currentCanvasId === change.canvasId
-            && this.selectionEquals(target, change.previousSelection);
-        canvas.connections.splice(index, 1);
-        if (restoreSelection) {
-            this.restoreSelection(target, change.nextSelection);
-        } else if (target.currentConnectionId === change.targetId) {
+            && this.matches(createSelectionSnapshot(target), selectionFrom);
+
+        if (direction === "undo") {
+            if (!this.insertConnection(target, canvas, change.connection)) return false;
+        } else {
+            const index = canvas.connections.findIndex(connection => connection.id === change.targetId);
+            if (index < 0) return false;
+            canvas.connections.splice(index, 1);
+        }
+        if (restoreSelection) this.restoreSelection(target, selectionTo);
+        else if (direction === "redo" && target.currentConnectionId === change.targetId) {
             target.currentConnectionId = null;
         }
         return true;
@@ -300,71 +243,47 @@ export class HistoryManager {
         change: CanvasDeleteHistoryChange,
         direction: HistoryDirection,
     ): boolean {
+        const [contextFrom, contextTo] = this.transition(change.context, direction);
+        const restoreContext = this.matches(createCanvasContextSnapshot(target), contextFrom);
         if (direction === "undo") {
-            if (!this.canRestoreCanvas(target, change.canvas)
-                || !this.isInsertionIndex(change.canvasIndex, target.state.canvases.length)) {
-                return false;
-            }
-            const restoreContext = this.canvasContextEquals(target, change.nextCanvasContext);
-            target.state.canvases.splice(change.canvasIndex, 0, this.restoreCanvas(change.canvas));
-            if (restoreContext) this.restoreCanvasContext(target, change.previousCanvasContext);
+            if (findCanvasById(target.state.canvases, change.canvasId)
+                || !this.isInsertionIndex(change.canvas.index, target.state.canvases.length)) return false;
+            target.state.canvases.splice(change.canvas.index, 0, this.restoreCanvas(change.canvas.value));
+            if (restoreContext) this.restoreCanvasContext(target, contextTo);
             return true;
         }
 
-        const canvasIndex = target.state.canvases.findIndex(canvas => canvas.id === change.canvasId);
-        if (canvasIndex < 0) return false;
-        const canvas = target.state.canvases[canvasIndex];
+        const index = target.state.canvases.findIndex(canvas => canvas.id === change.canvasId);
+        const canvas = target.state.canvases[index];
         if (!canvas) return false;
-        const restoreContext = this.canvasContextEquals(target, change.previousCanvasContext);
         const removedTaskIds = new Set(canvas.tasks.map(task => task.id));
         const removedConnectionIds = new Set(canvas.connections.map(connection => connection.id));
-        target.state.canvases.splice(canvasIndex, 1);
-
+        target.state.canvases.splice(index, 1);
         if (restoreContext) {
-            this.restoreCanvasContext(target, change.nextCanvasContext);
-        } else {
-            if (target.state.currentCanvasId === change.canvasId) {
-                target.state.currentCanvasId = target.state.canvases[canvasIndex]?.id
-                    ?? target.state.canvases[canvasIndex - 1]?.id
-                    ?? "";
-            }
-            this.clearInvalidSelection(target, removedTaskIds, removedConnectionIds);
-            if (target.state.viewSettings.depthBaseTaskId
-                && removedTaskIds.has(target.state.viewSettings.depthBaseTaskId)) {
-                target.state.viewSettings.depthFilterEnabled = false;
-                target.state.viewSettings.depthBaseTaskId = null;
-            }
-            if (target.state.canvases.length === 0) this.clearViewSettings(target);
+            this.restoreCanvasContext(target, contextTo);
+            return true;
         }
-        return true;
-    }
-
-    private restoreExistingTask(
-        target: HistoryTarget,
-        canvasId: string,
-        snapshot: TaskSnapshot,
-    ): boolean {
-        const canvas = findCanvasById(target.state.canvases, canvasId);
-        const task = canvas?.tasks.find(candidate => candidate.id === snapshot.id);
-        if (!task || !Object.values(TaskStatus).includes(snapshot.status)) return false;
-        task.title = snapshot.title;
-        task.description = snapshot.description;
-        task.status = snapshot.status;
-        task.x = snapshot.x;
-        task.y = snapshot.y;
-        task.createdAt = new Date(snapshot.createdAt);
-        task.updatedAt = new Date(snapshot.updatedAt);
+        if (target.state.currentCanvasId === change.canvasId) {
+            target.state.currentCanvasId = target.state.canvases[index]?.id
+                ?? target.state.canvases[index - 1]?.id
+                ?? "";
+        }
+        this.clearInvalidSelection(target, removedTaskIds, removedConnectionIds);
+        if (target.state.viewSettings.depthBaseTaskId
+            && removedTaskIds.has(target.state.viewSettings.depthBaseTaskId)) {
+            target.state.viewSettings.depthFilterEnabled = false;
+            target.state.viewSettings.depthBaseTaskId = null;
+        }
+        if (target.state.canvases.length === 0) this.clearViewSettings(target);
         return true;
     }
 
     private insertConnection(
         target: HistoryTarget,
-        canvasId: string,
-        snapshot: ConnectionSnapshot,
-        index: number,
+        canvas: Canvas,
+        item: ConnectionCreateHistoryChange["connection"],
     ): boolean {
-        const canvas = findCanvasById(target.state.canvases, canvasId);
-        if (!canvas || !this.isInsertionIndex(index, canvas.connections.length)) return false;
+        const snapshot = item.value;
         const taskIds = new Set(canvas.tasks.map(task => task.id));
         const duplicateId = target.state.canvases.some(candidate =>
             candidate.connections.some(connection => connection.id === snapshot.id),
@@ -373,147 +292,65 @@ export class HistoryManager {
             connection.parentTaskId === snapshot.parentTaskId
             && connection.childTaskId === snapshot.childTaskId,
         );
-        if (duplicateId || duplicateDirection
-            || snapshot.parentTaskId === snapshot.childTaskId
+        if (!this.isInsertionIndex(item.index, canvas.connections.length)
+            || duplicateId || duplicateDirection
             || !taskIds.has(snapshot.parentTaskId)
-            || !taskIds.has(snapshot.childTaskId)) {
-            return false;
-        }
-        canvas.connections.splice(index, 0, this.restoreConnection(snapshot));
-        return true;
-    }
-
-    private canRestoreConnections(
-        target: HistoryTarget,
-        canvasId: string,
-        change: TaskDeleteHistoryChange,
-    ): boolean {
-        const canvas = findCanvasById(target.state.canvases, canvasId);
-        if (!canvas) return false;
-        const connectionIds = new Set<string>();
-        const connectionDirections = new Set(
-            canvas.connections.map(connection => `${connection.parentTaskId}\u0000${connection.childTaskId}`),
-        );
-        const existingConnectionIds = new Set(
-            target.state.canvases.flatMap(candidate => candidate.connections.map(connection => connection.id)),
-        );
-        const taskIds = new Set(canvas.tasks.map(task => task.id));
-        taskIds.add(change.task.id);
-        let connectionCount = canvas.connections.length;
-        for (const removed of [...change.removedConnections].sort((a, b) => a.index - b.index)) {
-            const connection = removed.connection;
-            const direction = `${connection.parentTaskId}\u0000${connection.childTaskId}`;
-            if (!this.isInsertionIndex(removed.index, connectionCount)
-                || existingConnectionIds.has(connection.id)
-                || connectionIds.has(connection.id)
-                || connectionDirections.has(direction)
-                || connection.parentTaskId === connection.childTaskId
-                || !taskIds.has(connection.parentTaskId)
-                || !taskIds.has(connection.childTaskId)) {
-                return false;
-            }
-            connectionIds.add(connection.id);
-            connectionDirections.add(direction);
-            connectionCount += 1;
-        }
-        return true;
-    }
-
-    private canRestoreCanvas(target: HistoryTarget, snapshot: CanvasSnapshot): boolean {
-        if (target.state.canvases.some(canvas => canvas.id === snapshot.id)) return false;
-        const taskIds = new Set(target.state.canvases.flatMap(canvas => canvas.tasks.map(task => task.id)));
-        const canvasTaskIds = new Set<string>();
-        const connectionIds = new Set(
-            target.state.canvases.flatMap(canvas => canvas.connections.map(connection => connection.id)),
-        );
-        const connectionDirections = new Set<string>();
-        for (const task of snapshot.tasks) {
-            if (taskIds.has(task.id)) return false;
-            taskIds.add(task.id);
-            canvasTaskIds.add(task.id);
-        }
-        for (const connection of snapshot.connections) {
-            const direction = `${connection.parentTaskId}\u0000${connection.childTaskId}`;
-            if (connectionIds.has(connection.id)
-                || connectionDirections.has(direction)
-                || connection.parentTaskId === connection.childTaskId
-                || !canvasTaskIds.has(connection.parentTaskId)
-                || !canvasTaskIds.has(connection.childTaskId)) {
-                return false;
-            }
-            connectionIds.add(connection.id);
-            connectionDirections.add(direction);
-        }
+            || !taskIds.has(snapshot.childTaskId)) return false;
+        canvas.connections.splice(item.index, 0, this.restoreConnection(snapshot));
         return true;
     }
 
     private restoreTask(snapshot: TaskSnapshot): Task {
-        const task = new Task(
-            snapshot.id,
-            snapshot.title,
-            snapshot.description,
-            snapshot.status,
-            snapshot.x,
-            snapshot.y,
-        );
-        task.createdAt = new Date(snapshot.createdAt);
-        task.updatedAt = new Date(snapshot.updatedAt);
+        const task = new Task(snapshot.id);
+        this.assignTaskSnapshot(task, snapshot);
         return task;
     }
 
+    private assignTaskSnapshot(task: Task, snapshot: TaskSnapshot): void {
+        const { createdAt, updatedAt, ...values } = snapshot;
+        Object.assign(task, values, {
+            createdAt: new Date(createdAt),
+            updatedAt: new Date(updatedAt),
+        });
+    }
+
     private restoreConnection(snapshot: ConnectionSnapshot): Connection {
-        const connection = new Connection(
-            snapshot.id,
-            snapshot.parentTaskId,
-            snapshot.childTaskId,
-        );
+        const connection = new Connection(snapshot.id, snapshot.parentTaskId, snapshot.childTaskId);
         connection.createdAt = new Date(snapshot.createdAt);
         return connection;
     }
 
     private restoreCanvas(snapshot: CanvasSnapshot): Canvas {
-        const canvas = new Canvas(snapshot.id, snapshot.title, snapshot.x, snapshot.y);
-        canvas.tasks = snapshot.tasks.map(task => this.restoreTask(task));
-        canvas.connections = snapshot.connections.map(connection => this.restoreConnection(connection));
-        canvas.createdAt = new Date(snapshot.createdAt);
-        canvas.updatedAt = new Date(snapshot.updatedAt);
-        return canvas;
+        const { tasks, connections, createdAt, updatedAt, ...values } = snapshot;
+        return Object.assign(new Canvas(snapshot.id), values, {
+            tasks: tasks.map(task => this.restoreTask(task)),
+            connections: connections.map(connection => this.restoreConnection(connection)),
+            createdAt: new Date(createdAt),
+            updatedAt: new Date(updatedAt),
+        });
     }
 
     private restoreSelection(target: HistoryTarget, snapshot: SelectionSnapshot): void {
-        target.currentTaskId = snapshot.currentTaskId;
-        target.currentConnectionId = snapshot.currentConnectionId;
-        target.connectionParentTaskId = snapshot.connectionParentTaskId;
+        Object.assign(target, snapshot);
     }
 
     private restoreDepthFilter(target: HistoryTarget, snapshot: DepthFilterSnapshot): void {
-        target.state.viewSettings.depthFilterEnabled = snapshot.depthFilterEnabled;
-        target.state.viewSettings.depthBaseTaskId = snapshot.depthBaseTaskId;
-        target.state.viewSettings.maxDepth = snapshot.maxDepth;
-    }
-
-    private restoreViewSettings(target: HistoryTarget, snapshot: ViewSettingsSnapshot): void {
-        target.state.viewSettings.searchText = snapshot.searchText;
-        target.state.viewSettings.statusFilter = snapshot.statusFilter;
-        this.restoreDepthFilter(target, snapshot);
+        Object.assign(target.state.viewSettings, snapshot);
     }
 
     private restoreCanvasContext(target: HistoryTarget, snapshot: CanvasContextSnapshot): void {
         target.state.currentCanvasId = snapshot.currentCanvasId;
         this.restoreSelection(target, snapshot.selection);
-        this.restoreViewSettings(target, snapshot.viewSettings);
+        Object.assign(target.state.viewSettings, snapshot.viewSettings);
     }
 
     private clearInvalidSelection(
         target: HistoryTarget,
-        removedTaskIds: string | ReadonlySet<string>,
+        removedTaskIds: ReadonlySet<string>,
         removedConnectionIds: ReadonlySet<string>,
     ): void {
-        const taskIds = typeof removedTaskIds === "string"
-            ? new Set([removedTaskIds])
-            : removedTaskIds;
-        if (target.currentTaskId && taskIds.has(target.currentTaskId)) target.currentTaskId = null;
-        if (target.connectionParentTaskId && taskIds.has(target.connectionParentTaskId)) {
+        if (target.currentTaskId && removedTaskIds.has(target.currentTaskId)) target.currentTaskId = null;
+        if (target.connectionParentTaskId && removedTaskIds.has(target.connectionParentTaskId)) {
             target.connectionParentTaskId = null;
         }
         if (target.currentConnectionId && removedConnectionIds.has(target.currentConnectionId)) {
@@ -522,35 +359,23 @@ export class HistoryManager {
     }
 
     private clearViewSettings(target: HistoryTarget): void {
-        target.state.viewSettings.searchText = "";
-        target.state.viewSettings.statusFilter = null;
-        target.state.viewSettings.depthFilterEnabled = false;
-        target.state.viewSettings.depthBaseTaskId = null;
-        target.state.viewSettings.maxDepth = 0;
+        Object.assign(target.state.viewSettings, {
+            searchText: "",
+            statusFilter: null,
+            depthFilterEnabled: false,
+            depthBaseTaskId: null,
+            maxDepth: 0,
+        });
     }
 
-    private selectionEquals(target: HistoryTarget, snapshot: SelectionSnapshot): boolean {
-        return target.currentTaskId === snapshot.currentTaskId
-            && target.currentConnectionId === snapshot.currentConnectionId
-            && target.connectionParentTaskId === snapshot.connectionParentTaskId;
+    private transition<T>(transition: HistoryTransition<T>, direction: HistoryDirection): readonly [T, T] {
+        return direction === "undo"
+            ? [transition.after, transition.before]
+            : [transition.before, transition.after];
     }
 
-    private depthFilterEquals(
-        viewSettings: HistoryTarget["state"]["viewSettings"],
-        snapshot: DepthFilterSnapshot,
-    ): boolean {
-        return viewSettings.depthFilterEnabled === snapshot.depthFilterEnabled
-            && viewSettings.depthBaseTaskId === snapshot.depthBaseTaskId
-            && viewSettings.maxDepth === snapshot.maxDepth;
-    }
-
-    private canvasContextEquals(target: HistoryTarget, snapshot: CanvasContextSnapshot): boolean {
-        const viewSettings = target.state.viewSettings;
-        return target.state.currentCanvasId === snapshot.currentCanvasId
-            && this.selectionEquals(target, snapshot.selection)
-            && viewSettings.searchText === snapshot.viewSettings.searchText
-            && viewSettings.statusFilter === snapshot.viewSettings.statusFilter
-            && this.depthFilterEquals(viewSettings, snapshot.viewSettings);
+    private matches(value: unknown, snapshot: unknown): boolean {
+        return JSON.stringify(value) === JSON.stringify(snapshot);
     }
 
     private isInsertionIndex(index: number, length: number): boolean {

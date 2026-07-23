@@ -208,8 +208,10 @@ test("a failed history application does not move the entry to redo", () => {
         type: HistoryOperationType.TaskEdit,
         canvasId: "missing-canvas",
         targetId: snapshot.id,
-        previousTask: snapshot,
-        nextTask: { ...snapshot, title: "changed" },
+        task: {
+            before: snapshot,
+            after: { ...snapshot, title: "changed" },
+        },
     });
 
     assert.equal(manager.undo(app), false);

@@ -59,10 +59,7 @@ export type DepthFilterSnapshot = Readonly<{
 export type ViewSettingsSnapshot = Readonly<{
     searchText: string;
     statusFilter: TaskStatus | null;
-    depthFilterEnabled: boolean;
-    depthBaseTaskId: string | null;
-    maxDepth: number;
-}>;
+}> & DepthFilterSnapshot;
 
 export type CanvasContextSnapshot = Readonly<{
     currentCanvasId: string;
@@ -70,83 +67,53 @@ export type CanvasContextSnapshot = Readonly<{
     viewSettings: ViewSettingsSnapshot;
 }>;
 
-export type IndexedConnectionSnapshot = Readonly<{
-    connection: ConnectionSnapshot;
-    index: number;
+export type IndexedSnapshot<T> = Readonly<{ value: T; index: number }>;
+export type HistoryTransition<T> = Readonly<{ before: T; after: T }>;
+
+type HistoryChangeBase = Readonly<{
+    canvasId: string;
+    targetId: string;
 }>;
 
-interface HistoryChangeBase {
-    readonly type: HistoryOperationType;
-    readonly canvasId: string;
-    readonly targetId: string;
-}
+export type TaskAdditionHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.TaskCreate | HistoryOperationType.TaskPaste;
+    task: IndexedSnapshot<TaskSnapshot>;
+    selection: HistoryTransition<SelectionSnapshot>;
+}>;
 
-export interface TaskCreateHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.TaskCreate;
-    readonly task: TaskSnapshot;
-    readonly taskIndex: number;
-    readonly previousSelection: SelectionSnapshot;
-    readonly nextSelection: SelectionSnapshot;
-}
+export type TaskUpdateHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove;
+    task: HistoryTransition<TaskSnapshot>;
+}>;
 
-export interface TaskPasteHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.TaskPaste;
-    readonly task: TaskSnapshot;
-    readonly taskIndex: number;
-    readonly previousSelection: SelectionSnapshot;
-    readonly nextSelection: SelectionSnapshot;
-}
+export type TaskDeleteHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.TaskDelete;
+    task: IndexedSnapshot<TaskSnapshot>;
+    connections: ReadonlyArray<IndexedSnapshot<ConnectionSnapshot>>;
+    selection: HistoryTransition<SelectionSnapshot>;
+    depthFilter: HistoryTransition<DepthFilterSnapshot>;
+}>;
 
-export interface TaskEditHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.TaskEdit;
-    readonly previousTask: TaskSnapshot;
-    readonly nextTask: TaskSnapshot;
-}
+export type ConnectionCreateHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.ConnectionCreate;
+    connection: IndexedSnapshot<ConnectionSnapshot>;
+}>;
 
-export interface TaskMoveHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.TaskMove;
-    readonly previousTask: TaskSnapshot;
-    readonly nextTask: TaskSnapshot;
-}
+export type ConnectionDeleteHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.ConnectionDelete;
+    connection: IndexedSnapshot<ConnectionSnapshot>;
+    selection: HistoryTransition<SelectionSnapshot>;
+}>;
 
-export interface TaskDeleteHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.TaskDelete;
-    readonly task: TaskSnapshot;
-    readonly taskIndex: number;
-    readonly removedConnections: ReadonlyArray<IndexedConnectionSnapshot>;
-    readonly previousSelection: SelectionSnapshot;
-    readonly nextSelection: SelectionSnapshot;
-    readonly previousDepthFilter: DepthFilterSnapshot;
-    readonly nextDepthFilter: DepthFilterSnapshot;
-}
-
-export interface ConnectionCreateHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.ConnectionCreate;
-    readonly connection: ConnectionSnapshot;
-    readonly connectionIndex: number;
-}
-
-export interface ConnectionDeleteHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.ConnectionDelete;
-    readonly connection: ConnectionSnapshot;
-    readonly connectionIndex: number;
-    readonly previousSelection: SelectionSnapshot;
-    readonly nextSelection: SelectionSnapshot;
-}
-
-export interface CanvasDeleteHistoryChange extends HistoryChangeBase {
-    readonly type: HistoryOperationType.CanvasDelete;
-    readonly canvas: CanvasSnapshot;
-    readonly canvasIndex: number;
-    readonly previousCanvasContext: CanvasContextSnapshot;
-    readonly nextCanvasContext: CanvasContextSnapshot;
-}
+export type CanvasDeleteHistoryChange = HistoryChangeBase & Readonly<{
+    type: HistoryOperationType.CanvasDelete;
+    canvas: IndexedSnapshot<CanvasSnapshot>;
+    context: HistoryTransition<CanvasContextSnapshot>;
+}>;
 
 export type HistoryChange =
-    | TaskCreateHistoryChange
-    | TaskPasteHistoryChange
-    | TaskEditHistoryChange
-    | TaskMoveHistoryChange
+    | TaskAdditionHistoryChange
+    | TaskUpdateHistoryChange
     | TaskDeleteHistoryChange
     | ConnectionCreateHistoryChange
     | ConnectionDeleteHistoryChange

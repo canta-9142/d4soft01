@@ -131,10 +131,11 @@ export class Application {
             type: HistoryOperationType.CanvasDelete,
             canvasId,
             targetId: canvasId,
-            canvas: canvasSnapshot,
-            canvasIndex: index,
-            previousCanvasContext,
-            nextCanvasContext: createCanvasContextSnapshot(this),
+            canvas: { value: canvasSnapshot, index },
+            context: {
+                before: previousCanvasContext,
+                after: createCanvasContextSnapshot(this),
+            },
         });
         return true;
     }
@@ -183,66 +184,51 @@ export class Application {
             type: HistoryOperationType.TaskCreate,
             canvasId: canvas.id,
             targetId: task.id,
-            task: createTaskSnapshot(task),
-            taskIndex: canvas.tasks.length - 1,
-            previousSelection,
-            nextSelection: createSelectionSnapshot(this),
+            task: { value: createTaskSnapshot(task), index: canvas.tasks.length - 1 },
+            selection: {
+                before: previousSelection,
+                after: createSelectionSnapshot(this),
+            },
         });
         return task.id;
     }
     public updateTaskTitle = (taskId: string, title: string): boolean => {
-        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
-        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         const normalizedTitle = title.trim();
-        if (!canvas || !task || !normalizedTitle) return false;
-        const previousTask = createTaskSnapshot(task);
-        task.updateTitle(normalizedTitle);
-        this.isDirty = true;
-        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
-        return true;
+        return normalizedTitle
+            ? this.mutateTask(taskId, HistoryOperationType.TaskEdit, task => task.updateTitle(normalizedTitle))
+            : false;
     }
     public updateTaskDescription = (taskId: string, description: string): boolean => {
-        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
-        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
-        if (!canvas || !task) return false;
-        const previousTask = createTaskSnapshot(task);
-        task.updateDescription(description);
-        this.isDirty = true;
-        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
-        return true;
+        return this.mutateTask(
+            taskId,
+            HistoryOperationType.TaskEdit,
+            task => task.updateDescription(description),
+        );
     }
     public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
-        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
-        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
-        if (!canvas || !task || !Object.values(TaskStatus).includes(status)) return false;
-        const previousTask = createTaskSnapshot(task);
-        task.updateStatus(status);
-        this.isDirty = true;
-        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
-        return true;
+        return Object.values(TaskStatus).includes(status)
+            ? this.mutateTask(taskId, HistoryOperationType.TaskEdit, task => task.updateStatus(status))
+            : false;
     }
     public updateTask = (taskId: string, title: string, description: string, status: TaskStatus): boolean => {
-        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
-        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         const normalizedTitle = title.trim();
-        if (!canvas || !task || !normalizedTitle || !Object.values(TaskStatus).includes(status)) return false;
-        const previousTask = createTaskSnapshot(task);
-        task.updateDetails(normalizedTitle, description, status);
-        this.isDirty = true;
-        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
-        return true;
+        return normalizedTitle && Object.values(TaskStatus).includes(status)
+            ? this.mutateTask(
+                taskId,
+                HistoryOperationType.TaskEdit,
+                task => task.updateDetails(normalizedTitle, description, status),
+            )
+            : false;
     }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
-        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
-        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
-        if (!canvas || !task || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-        const previousTask = createTaskSnapshot(task);
-        task.updatePosition(x, y);
-        this.isDirty = true;
-        if (this.pendingTaskMove?.taskId !== taskId) {
-            this.recordTaskChange(HistoryOperationType.TaskMove, canvas.id, previousTask, task);
-        }
-        return true;
+        return Number.isFinite(x) && Number.isFinite(y)
+            ? this.mutateTask(
+                taskId,
+                HistoryOperationType.TaskMove,
+                task => task.updatePosition(x, y),
+                this.pendingTaskMove?.taskId !== taskId,
+            )
+            : false;
     }
     public beginTaskMove = (taskId: string): boolean => {
         const canvas = findCanvasByTaskId(this.state.canvases, taskId);
@@ -295,13 +281,19 @@ export class Application {
             type: HistoryOperationType.TaskDelete,
             canvasId: canvas.id,
             targetId: taskId,
-            task: createTaskSnapshot(task),
-            taskIndex,
-            removedConnections,
-            previousSelection,
-            nextSelection: createSelectionSnapshot(this),
-            previousDepthFilter,
-            nextDepthFilter: createDepthFilterSnapshot(this.state.viewSettings),
+            task: { value: createTaskSnapshot(task), index: taskIndex },
+            connections: removedConnections.map(item => ({
+                value: item.connection,
+                index: item.index,
+            })),
+            selection: {
+                before: previousSelection,
+                after: createSelectionSnapshot(this),
+            },
+            depthFilter: {
+                before: previousDepthFilter,
+                after: createDepthFilterSnapshot(this.state.viewSettings),
+            },
         });
         return true;
     }
@@ -323,8 +315,10 @@ export class Application {
             type: HistoryOperationType.ConnectionCreate,
             canvasId: canvas.id,
             targetId: connection.id,
-            connection: createConnectionSnapshot(connection),
-            connectionIndex: canvas.connections.length - 1,
+            connection: {
+                value: createConnectionSnapshot(connection),
+                index: canvas.connections.length - 1,
+            },
         });
         return true;
     }
@@ -343,10 +337,11 @@ export class Application {
             type: HistoryOperationType.ConnectionDelete,
             canvasId: canvas.id,
             targetId: connectionId,
-            connection: createConnectionSnapshot(connection),
-            connectionIndex,
-            previousSelection,
-            nextSelection: createSelectionSnapshot(this),
+            connection: { value: createConnectionSnapshot(connection), index: connectionIndex },
+            selection: {
+                before: previousSelection,
+                after: createSelectionSnapshot(this),
+            },
         });
         return true;
     }
@@ -377,10 +372,11 @@ export class Application {
             type: HistoryOperationType.TaskPaste,
             canvasId: canvas.id,
             targetId: newTask.id,
-            task: createTaskSnapshot(newTask),
-            taskIndex: canvas.tasks.length - 1,
-            previousSelection,
-            nextSelection: createSelectionSnapshot(this),
+            task: { value: createTaskSnapshot(newTask), index: canvas.tasks.length - 1 },
+            selection: {
+                before: previousSelection,
+                after: createSelectionSnapshot(this),
+            },
         });
         return true;
     }
@@ -424,19 +420,40 @@ export class Application {
     // public save = (): boolean => { ... }
     // public restore = (): boolean => { ... }
 
+    private mutateTask(
+        taskId: string,
+        type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove,
+        mutate: (task: Task) => void,
+        recordHistory = true,
+    ): boolean {
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task) return false;
+        const before = createTaskSnapshot(task);
+        mutate(task);
+        if (recordHistory) {
+            this.historyManager.record({
+                type,
+                canvasId: canvas.id,
+                targetId: task.id,
+                task: { before, after: createTaskSnapshot(task) },
+            });
+        }
+        this.isDirty = true;
+        return true;
+    }
+
     private recordTaskChange(
         type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove,
         canvasId: string,
-        previousTask: TaskSnapshot,
+        before: TaskSnapshot,
         task: Task,
     ): void {
-        const nextTask = createTaskSnapshot(task);
         this.historyManager.record({
             type,
             canvasId,
             targetId: task.id,
-            previousTask,
-            nextTask,
+            task: { before, after: createTaskSnapshot(task) },
         });
     }
 }
