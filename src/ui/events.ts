@@ -109,11 +109,16 @@ export class EventController {
         const button = target.closest<HTMLElement>("[data-canvas-id]");
         const canvasId = button?.dataset.canvasId;
         if (!canvasId) return;
+        this.switchToCanvas(canvasId);
+    }
+
+    private switchToCanvas(canvasId: string): void {
         if (!this.app.changeCanvas(canvasId)) {
             this.renderer.showMessage("保存できなかったためキャンバスを切り替えませんでした", "error");
             return;
         }
         this.renderer.toggleMenu(false);
+        this.renderer.toggleFilterPanel(false);
         this.renderer.render();
         this.renderer.showMessage("保存してキャンバスを切り替えました");
     }
@@ -458,14 +463,25 @@ export class EventController {
         const modifier = event.ctrlKey || event.metaKey;
 
         if (event.key === "Escape") {
+            event.preventDefault();
             this.renderer.toggleMenu(false);
             this.renderer.toggleFilterPanel(false);
             if (this.renderer.taskDialog.open) {
                 this.renderer.closeTaskDialog();
             }
-            if (this.app.mode !== AppMode.NORMAL) {
-                this.app.setMode(AppMode.NORMAL);
-                this.renderer.render();
+            this.app.setMode(AppMode.NORMAL);
+            this.renderer.render();
+            return;
+        }
+        if (this.renderer.taskDialog.open) {
+            if (
+                event.key === "Enter"
+                && (target instanceof HTMLInputElement
+                    || target instanceof HTMLSelectElement)
+                && !event.isComposing
+            ) {
+                event.preventDefault();
+                this.renderer.taskForm.requestSubmit();
             }
             return;
         }
@@ -498,6 +514,16 @@ export class EventController {
         }
         if (isEditingText) return;
 
+        if (
+            event.shiftKey
+            && !modifier
+            && (event.key === "ArrowUp" || event.key === "ArrowDown")
+            && this.app.mode === AppMode.NORMAL
+        ) {
+            event.preventDefault();
+            this.switchCanvasByOffset(event.key === "ArrowUp" ? -1 : 1);
+            return;
+        }
         if (modifier
             && event.key.toLowerCase() === "c"
             && this.app.mode === AppMode.NORMAL
@@ -544,25 +570,75 @@ export class EventController {
         }
         if (modifier
             && event.key.toLowerCase() === "e"
-            && this.app.mode === AppMode.NORMAL
-            && this.app.currentTaskId) {
+            && this.app.mode === AppMode.NORMAL) {
             event.preventDefault();
-            this.openSelectedTaskEditor();
+            if (this.app.currentTaskId) this.openSelectedTaskEditor();
             return;
         }
-        if (modifier && event.key.toLowerCase() === "x") {
+        if (
+            modifier
+            && event.key.toLowerCase() === "d"
+            && this.app.mode === AppMode.NORMAL
+        ) {
+            event.preventDefault();
+            this.deleteSelection();
+            return;
+        }
+        if (
+            modifier
+            && event.key.toLowerCase() === "x"
+            && (this.app.mode === AppMode.NORMAL || this.app.mode === AppMode.CONNECT)
+        ) {
             event.preventDefault();
             this.toggleConnectMode();
             return;
         }
-        if (modifier && event.key.toLowerCase() === "a") {
+        if (
+            modifier
+            && event.key.toLowerCase() === "a"
+            && this.app.mode === AppMode.NORMAL
+        ) {
             event.preventDefault();
             this.openNewTaskAtViewportCenter();
             return;
         }
+        if (
+            !modifier
+            && !event.shiftKey
+            && (event.key === "ArrowUp" || event.key === "ArrowDown")
+            && this.app.mode === AppMode.NORMAL
+            && this.app.currentTaskId
+        ) {
+            event.preventDefault();
+            this.selectTaskByOffset(event.key === "ArrowUp" ? -1 : 1);
+            return;
+        }
         if (event.key === "Delete" && this.app.mode === AppMode.NORMAL) {
+            event.preventDefault();
             this.deleteSelection();
         }
+    }
+
+    private switchCanvasByOffset(offset: -1 | 1): void {
+        const canvases = this.app.state.canvases;
+        const currentIndex = canvases.findIndex(
+            canvas => canvas.id === this.app.state.currentCanvasId,
+        );
+        if (currentIndex < 0) return;
+        const destination = canvases[currentIndex + offset];
+        if (!destination) return;
+        this.switchToCanvas(destination.id);
+    }
+
+    private selectTaskByOffset(offset: -1 | 1): void {
+        const tasks = this.app.getVisibleItems().tasks;
+        const currentIndex = tasks.findIndex(task => task.id === this.app.currentTaskId);
+        if (currentIndex < 0) return;
+        const destination = tasks[currentIndex + offset];
+        if (!destination) return;
+        this.app.currentTaskId = destination.id;
+        this.app.currentConnectionId = null;
+        this.renderer.render();
     }
 
     private deleteSelection(): void {
