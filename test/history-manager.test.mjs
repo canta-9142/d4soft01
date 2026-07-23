@@ -140,7 +140,7 @@ test("canvas deletion restores the canvas and its context", () => {
     const firstCanvasId = createCanvas(app, "first");
     const secondCanvasId = createCanvas(app, "second");
     const taskId = createTask(app, "task");
-    app.state.viewSettings.searchText = "query";
+    app.state.viewSettings.searchText = "task";
     app.currentTaskId = taskId;
     app.historyManager.clear();
 
@@ -149,7 +149,7 @@ test("canvas deletion restores the canvas and its context", () => {
 
     assert.equal(app.undo(), true);
     assert.equal(app.state.currentCanvasId, secondCanvasId);
-    assert.equal(app.state.viewSettings.searchText, "query");
+    assert.equal(app.state.viewSettings.searchText, "task");
     assert.equal(app.currentTaskId, taskId);
     assert.ok(app.getTask(taskId) instanceof Task);
 
@@ -189,6 +189,32 @@ test("pasting a task is undoable and keeps the generated identity on redo", () =
     assert.equal(app.getTask(pastedId), undefined);
     assert.equal(app.redo(), true);
     assert.equal(app.getTask(pastedId)?.id, pastedId);
+});
+
+test("clipboard keeps a copy-time snapshot and uses the fallback position on another canvas", () => {
+    const app = new Application();
+    createCanvas(app, "source");
+    const sourceId = createTask(app, "source task", 8, 12);
+    assert.equal(app.copyTaskToClipboard(sourceId), true);
+    assert.equal(app.updateTaskTitle(sourceId, "changed after copy"), true);
+
+    createCanvas(app, "destination");
+    app.historyManager.clear();
+    assert.equal(app.pasteTask({ x: 100, y: 200 }), true);
+    const pastedId = app.currentTaskId;
+    assert.ok(pastedId);
+    assert.deepEqual(
+        {
+            title: app.getTask(pastedId)?.title,
+            x: app.getTask(pastedId)?.x,
+            y: app.getTask(pastedId)?.y,
+        },
+        { title: "source task", x: 100, y: 200 },
+    );
+    assert.equal(app.undo(), true);
+    assert.equal(app.getTask(pastedId), undefined);
+    assert.equal(app.redo(), true);
+    assert.equal(app.getTask(pastedId)?.title, "source task");
 });
 
 test("a failed history application does not move the entry to redo", () => {

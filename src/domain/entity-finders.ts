@@ -3,8 +3,9 @@ import { Task } from "./task.js";
 
 export const findCanvasById = (
     canvases: readonly Canvas[],
-    canvasId: string,
+    canvasId: string | null,
 ): Canvas | undefined => {
+    if (canvasId === null) return undefined;
     return canvases.find(canvas => canvas.id === canvasId);
 };
 

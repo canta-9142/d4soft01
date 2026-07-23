@@ -17,7 +17,17 @@ export class Renderer {
     readonly addTaskButton: HTMLButtonElement;
     readonly editTaskButton: HTMLButtonElement;
     readonly connectModeButton: HTMLButtonElement;
+    readonly filterButton: HTMLButtonElement;
+    readonly filterPanel: HTMLElement;
+    readonly searchInput: HTMLInputElement;
+    readonly statusFilterSelect: HTMLSelectElement;
+    readonly setDepthBaseButton: HTMLButtonElement;
+    readonly maxDepthInput: HTMLInputElement;
+    readonly depthFilterCheckbox: HTMLInputElement;
     readonly menuPanel: HTMLElement;
+    readonly saveButton: HTMLButtonElement;
+    readonly restoreButton: HTMLButtonElement;
+    readonly deleteCanvasButton: HTMLButtonElement;
     readonly taskDialog: HTMLDialogElement;
     readonly taskForm: HTMLFormElement;
 
@@ -27,6 +37,8 @@ export class Renderer {
     private readonly emptyState: HTMLElement;
     private readonly canvasList: HTMLElement;
     private readonly message: HTMLElement;
+    private readonly depthBaseTaskLabel: HTMLElement;
+    private readonly filterError: HTMLElement;
     private messageTimer: number | null = null;
 
     constructor(private readonly app: Application) {
@@ -38,7 +50,17 @@ export class Renderer {
         this.addTaskButton = this.required("#addTaskButton", HTMLButtonElement);
         this.editTaskButton = this.required("#editTaskButton", HTMLButtonElement);
         this.connectModeButton = this.required("#connectModeButton", HTMLButtonElement);
+        this.filterButton = this.required("#filterButton", HTMLButtonElement);
+        this.filterPanel = this.required("#filterPanel", HTMLElement);
+        this.searchInput = this.required("#searchInput", HTMLInputElement);
+        this.statusFilterSelect = this.required("#statusFilterSelect", HTMLSelectElement);
+        this.setDepthBaseButton = this.required("#setDepthBaseButton", HTMLButtonElement);
+        this.maxDepthInput = this.required("#maxDepthInput", HTMLInputElement);
+        this.depthFilterCheckbox = this.required("#depthFilterCheckbox", HTMLInputElement);
         this.menuPanel = this.required("#canvasMenu", HTMLElement);
+        this.saveButton = this.required("#saveButton", HTMLButtonElement);
+        this.restoreButton = this.required("#restoreButton", HTMLButtonElement);
+        this.deleteCanvasButton = this.required("#deleteCanvasButton", HTMLButtonElement);
         this.taskDialog = this.required("#taskDialog", HTMLDialogElement);
         this.taskForm = this.required("#taskForm", HTMLFormElement);
         this.modeIndicator = this.required("#modeIndicator", HTMLElement);
@@ -47,6 +69,8 @@ export class Renderer {
         this.emptyState = this.required("#emptyState", HTMLElement);
         this.canvasList = this.required("#canvasList", HTMLElement);
         this.message = this.required("#message", HTMLElement);
+        this.depthBaseTaskLabel = this.required("#depthBaseTaskLabel", HTMLElement);
+        this.filterError = this.required("#filterError", HTMLElement);
     }
 
     public render = (): void => {
@@ -61,8 +85,12 @@ export class Renderer {
             || !this.app.currentTaskId
             || !this.app.getTask(this.app.currentTaskId);
         this.connectModeButton.disabled = !hasCanvas;
+        this.saveButton.disabled = this.app.mode !== AppMode.NORMAL;
+        this.restoreButton.disabled = this.app.mode !== AppMode.NORMAL;
+        this.deleteCanvasButton.disabled = !hasCanvas || this.app.mode !== AppMode.NORMAL;
         this.connectModeButton.classList.toggle("is-active", this.app.mode === AppMode.CONNECT);
         this.connectModeButton.setAttribute("aria-pressed", String(this.app.mode === AppMode.CONNECT));
+        this.renderFilterControls(hasCanvas);
         this.modeIndicator.textContent = this.modeLabel();
         this.dirtyIndicator.textContent = this.app.isDirty ? "未保存" : "変更なし";
         this.dirtyIndicator.classList.toggle("is-dirty", this.app.isDirty);
@@ -80,10 +108,25 @@ export class Renderer {
             return;
         }
 
-        for (const task of canvas.tasks) {
+        const visible = this.app.getVisibleItems();
+        for (const task of visible.tasks) {
             this.taskLayer.append(this.createTaskCard(task));
         }
-        this.taskCount.textContent = `タスク ${canvas.tasks.length} / 接続 ${canvas.connections.length}`;
+        const statusCounts = {
+            [TaskStatus.NOTSTARTED]: 0,
+            [TaskStatus.INPROGRESS]: 0,
+            [TaskStatus.COMPLETED]: 0,
+        };
+        for (const task of visible.tasks) {
+            statusCounts[task.status] += 1;
+        }
+        this.taskCount.textContent = [
+            `タスク ${visible.tasks.length}`,
+            `未着手 ${statusCounts[TaskStatus.NOTSTARTED]}`,
+            `進行中 ${statusCounts[TaskStatus.INPROGRESS]}`,
+            `完了 ${statusCounts[TaskStatus.COMPLETED]}`,
+            `接続 ${visible.connections.length}`,
+        ].join(" / ");
         this.updateCanvasTransform();
         this.renderConnections();
     }
@@ -93,7 +136,7 @@ export class Renderer {
         const canvas = this.app.getCurrentCanvas();
         if (!canvas) return;
 
-        for (const connection of canvas.connections) {
+        for (const connection of this.app.getVisibleItems().connections) {
             const parent = this.app.getTask(connection.parentTaskId);
             const child = this.app.getTask(connection.childTaskId);
             const parentElement = this.taskElement(connection.parentTaskId);
@@ -228,6 +271,19 @@ export class Renderer {
         this.menuPanel.hidden = !shouldOpen;
     }
 
+    toggleFilterPanel = (force?: boolean): void => {
+        const shouldOpen = force ?? this.filterPanel.hidden;
+        this.filterPanel.hidden = !shouldOpen;
+        this.filterButton.setAttribute("aria-expanded", String(shouldOpen));
+        if (shouldOpen) {
+            window.requestAnimationFrame(() => this.searchInput.focus());
+        }
+    }
+
+    showFilterError = (text: string): void => {
+        this.filterError.textContent = text;
+    }
+
     private createTaskCard(task: Task): HTMLElement {
         const selected = task.id === this.app.currentTaskId;
         const card = document.createElement("article");
@@ -268,6 +324,35 @@ export class Renderer {
             button.classList.toggle("is-current", canvas.id === this.app.state.currentCanvasId);
             this.canvasList.append(button);
         }
+    }
+
+    private renderFilterControls(hasCanvas: boolean): void {
+        const settings = this.app.state.viewSettings;
+        const filtersActive = settings.searchText.trim() !== ""
+            || settings.statusFilter !== null
+            || settings.depthFilterEnabled;
+        this.filterButton.disabled = !hasCanvas || this.app.mode !== AppMode.NORMAL;
+        this.filterButton.classList.toggle("is-active", filtersActive);
+        this.filterButton.setAttribute("aria-pressed", String(filtersActive));
+        if (!hasCanvas) this.toggleFilterPanel(false);
+
+        this.searchInput.disabled = !hasCanvas;
+        this.searchInput.value = settings.searchText;
+        this.statusFilterSelect.disabled = !hasCanvas;
+        this.statusFilterSelect.value = settings.statusFilter ?? "";
+        this.setDepthBaseButton.disabled = !hasCanvas
+            || this.app.mode !== AppMode.NORMAL
+            || !this.app.currentTaskId;
+        this.maxDepthInput.disabled = !hasCanvas;
+        this.maxDepthInput.value = settings.maxDepth === null ? "" : String(settings.maxDepth);
+        this.depthFilterCheckbox.disabled = !hasCanvas;
+        this.depthFilterCheckbox.checked = settings.depthFilterEnabled;
+
+        const canvas = this.app.getCurrentCanvas();
+        const baseTask = settings.depthBaseTaskId
+            ? canvas?.tasks.find(task => task.id === settings.depthBaseTaskId)
+            : undefined;
+        this.depthBaseTaskLabel.textContent = baseTask?.title ?? "未設定";
     }
 
     private modeLabel(): string {

@@ -76,6 +76,12 @@ button:disabled {
     background: #2f6feb;
 }
 
+.button.compact {
+    min-height: 30px;
+    padding: 0 9px;
+    font-size: 12px;
+}
+
 .canvas-title-input {
     border: 1px solid transparent;
     border-radius: 6px;
@@ -140,6 +146,81 @@ button:disabled {
 .menu-action {
     border-top: 1px solid #efefed;
     border-radius: 0 0 5px 5px;
+}
+
+.menu-action.danger {
+    color: #b42318;
+}
+
+.filter-panel {
+    z-index: 120;
+    border: 1px solid #e3e2de;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgb(47 52 55 / 16%);
+}
+
+.filter-panel[hidden] {
+    display: none;
+}
+
+.filter-title {
+    color: #2f3437;
+}
+
+.filter-help,
+.filter-caption {
+    color: #6b6f76;
+}
+
+.filter-field {
+    display: grid;
+    gap: 6px;
+    color: #5f6368;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.filter-field input,
+.filter-field select {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 9px;
+    border: 1px solid #dadada;
+    border-radius: 6px;
+    outline: none;
+    color: #2f3437;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.filter-field input:focus,
+.filter-field select:focus {
+    border-color: #2f6feb;
+    box-shadow: 0 0 0 2px rgb(47 111 235 / 14%);
+}
+
+.depth-filter {
+    border: 1px solid #e3e2de;
+    border-radius: 8px;
+    background: #fafaf8;
+}
+
+.filter-switch {
+    color: #5f6368;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.filter-switch input {
+    width: 16px;
+    height: 16px;
+    accent-color: #2f6feb;
+}
+
+.filter-error {
+    color: #d93025;
 }
 
 .viewport {

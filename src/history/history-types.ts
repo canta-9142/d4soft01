@@ -53,7 +53,7 @@ export type SelectionSnapshot = Readonly<{
 export type DepthFilterSnapshot = Readonly<{
     depthFilterEnabled: boolean;
     depthBaseTaskId: string | null;
-    maxDepth: number;
+    maxDepth: number | null;
 }>;
 
 export type ViewSettingsSnapshot = Readonly<{
@@ -62,7 +62,7 @@ export type ViewSettingsSnapshot = Readonly<{
 }> & DepthFilterSnapshot;
 
 export type CanvasContextSnapshot = Readonly<{
-    currentCanvasId: string;
+    currentCanvasId: string | null;
     selection: SelectionSnapshot;
     viewSettings: ViewSettingsSnapshot;
 }>;
@@ -75,11 +75,23 @@ type HistoryChangeBase = Readonly<{
     targetId: string;
 }>;
 
-export type TaskAdditionHistoryChange = HistoryChangeBase & Readonly<{
-    type: HistoryOperationType.TaskCreate | HistoryOperationType.TaskPaste;
+type TaskAdditionHistoryChangeBase = HistoryChangeBase & Readonly<{
     task: IndexedSnapshot<TaskSnapshot>;
     selection: HistoryTransition<SelectionSnapshot>;
 }>;
+
+export type TaskCreateHistoryChange = TaskAdditionHistoryChangeBase & Readonly<{
+    type: HistoryOperationType.TaskCreate;
+    viewSettings: HistoryTransition<ViewSettingsSnapshot>;
+}>;
+
+export type TaskPasteHistoryChange = TaskAdditionHistoryChangeBase & Readonly<{
+    type: HistoryOperationType.TaskPaste;
+}>;
+
+export type TaskAdditionHistoryChange =
+    | TaskCreateHistoryChange
+    | TaskPasteHistoryChange;
 
 export type TaskUpdateHistoryChange = HistoryChangeBase & Readonly<{
     type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove;
@@ -122,7 +134,7 @@ export type HistoryChange =
 export interface HistoryTarget {
     state: {
         canvases: Array<Canvas>;
-        currentCanvasId: string;
+        currentCanvasId: string | null;
         viewSettings: ViewSettings;
     };
     currentTaskId: string | null;

@@ -33,9 +33,24 @@ export class EventController {
         // manu 内のボタンのイベントリスナー
         document.querySelector("#newCanvasButton")?.addEventListener("click", this.createCanvas); // 新規キャンバス作成ボタン
         document.querySelector("#emptyCreateCanvasButton")?.addEventListener("click", this.createCanvas); // キャンバスがないときの新規キャンバス作成ボタン
+        this.renderer.saveButton.addEventListener("click", this.saveState);
+        this.renderer.restoreButton.addEventListener("click", this.restoreState);
+        this.renderer.deleteCanvasButton.addEventListener("click", this.deleteCurrentCanvas);
         this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter()); // 新規タスク作成ボタン
         this.renderer.editTaskButton.addEventListener("click", this.openSelectedTaskEditor); // 選択中タスクの編集ボタン
         this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode); // 接続モード切替ボタン
+        this.renderer.filterButton.addEventListener("click", event => {
+            event.stopPropagation();
+            this.renderer.toggleMenu(false);
+            this.renderer.showFilterError("");
+            this.renderer.toggleFilterPanel();
+        });
+        this.renderer.searchInput.addEventListener("input", this.updateSearchText);
+        this.renderer.statusFilterSelect.addEventListener("change", this.updateStatusFilter);
+        this.renderer.setDepthBaseButton.addEventListener("click", this.setSelectedTaskAsDepthBase);
+        this.renderer.maxDepthInput.addEventListener("input", this.updateEnabledDepthFilter);
+        this.renderer.depthFilterCheckbox.addEventListener("change", this.toggleDepthFilter);
+        document.querySelector("#clearSearchButton")?.addEventListener("click", this.clearSearchText);
         this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle); // キャンバスタイトルの変更
         document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas); // キャンバスリストからキャンバスを選択して切替
         
@@ -69,6 +84,10 @@ export class EventController {
             if (!this.renderer.menuPanel.contains(target) && !document.querySelector("#hamburger")?.contains(target)) {
                 this.renderer.toggleMenu(false);
             }
+            if (!this.renderer.filterPanel.contains(target)
+                && !this.renderer.filterButton.contains(target)) {
+                this.renderer.toggleFilterPanel(false);
+            }
         });
         
         // キーボード操作
@@ -89,9 +108,51 @@ export class EventController {
         if (!(target instanceof Element)) return;
         const button = target.closest<HTMLElement>("[data-canvas-id]");
         const canvasId = button?.dataset.canvasId;
-        if (!canvasId || !this.app.changeCanvas(canvasId)) return;
+        if (!canvasId) return;
+        if (!this.app.changeCanvas(canvasId)) {
+            this.renderer.showMessage("保存できなかったためキャンバスを切り替えませんでした", "error");
+            return;
+        }
         this.renderer.toggleMenu(false);
         this.renderer.render();
+        this.renderer.showMessage("保存してキャンバスを切り替えました");
+    }
+
+    private saveState = (): void => {
+        const succeeded = this.app.save();
+        this.renderer.toggleMenu(false);
+        this.renderer.render();
+        this.renderer.showMessage(
+            succeeded ? "保存しました" : "保存できませんでした",
+            succeeded ? "info" : "error",
+        );
+    }
+
+    private restoreState = (): void => {
+        if (this.app.isDirty
+            && !window.confirm("未保存の変更を破棄して、保存状態へ戻しますか？")) return;
+        const result = this.app.restore();
+        this.renderer.toggleMenu(false);
+        this.renderer.toggleFilterPanel(false);
+        this.renderer.closeTaskDialog();
+        this.renderer.render();
+        this.renderer.showMessage(
+            result.success ? "保存状態を復元しました" : result.errorMessage ?? "保存データがありません",
+            result.success ? "info" : "error",
+        );
+    }
+
+    private deleteCurrentCanvas = (): void => {
+        const canvas = this.app.getCurrentCanvas();
+        if (!canvas || !window.confirm(`「${canvas.title}」を削除しますか？`)) return;
+        const succeeded = this.app.removeCanvas(canvas.id);
+        this.renderer.toggleMenu(false);
+        this.renderer.toggleFilterPanel(false);
+        this.renderer.render();
+        this.renderer.showMessage(
+            succeeded ? "キャンバスを削除しました" : "キャンバスを削除できませんでした",
+            succeeded ? "info" : "error",
+        );
     }
 
     private updateCanvasTitle = (): void => {
@@ -107,6 +168,7 @@ export class EventController {
 
     private toggleConnectMode = (): void => {
         if (!this.app.getCurrentCanvas()) return;
+        this.renderer.toggleFilterPanel(false);
         if (this.app.mode === AppMode.CONNECT) {
             this.app.setMode(AppMode.NORMAL);
             this.renderer.showMessage("接続モードを終了しました");
@@ -117,6 +179,75 @@ export class EventController {
             this.renderer.showMessage("接続元のカードを選んでください");
         }
         this.renderer.render();
+    }
+
+    private updateSearchText = (): void => {
+        if (!this.app.updateSearchText(this.renderer.searchInput.value)) return;
+        this.renderer.showFilterError("");
+        this.renderer.render();
+    }
+
+    private updateStatusFilter = (): void => {
+        const value = this.renderer.statusFilterSelect.value;
+        const status = value === "" ? null : this.toTaskStatus(value);
+        if (value !== "" && status === null) return;
+        if (!this.app.updateStatusFilter(status)) return;
+        this.renderer.showFilterError("");
+        this.renderer.render();
+    }
+
+    private setSelectedTaskAsDepthBase = (): void => {
+        const taskId = this.app.currentTaskId;
+        if (!taskId || !this.app.setDepthFilterBaseTask(taskId)) {
+            this.renderer.showFilterError("基準にするタスクを選択してください");
+            return;
+        }
+        this.renderer.showFilterError("");
+        this.renderer.render();
+    }
+
+    private toggleDepthFilter = (): void => {
+        if (!this.renderer.depthFilterCheckbox.checked) {
+            this.app.clearDepthFilter();
+            this.renderer.showFilterError("");
+            this.renderer.render();
+            return;
+        }
+        this.applyDepthFilterFromControls();
+    }
+
+    private updateEnabledDepthFilter = (): void => {
+        if (!this.renderer.depthFilterCheckbox.checked) return;
+        this.applyDepthFilterFromControls();
+    }
+
+    private applyDepthFilterFromControls(): void {
+        const baseTaskId = this.app.state.viewSettings.depthBaseTaskId;
+        const depthText = this.renderer.maxDepthInput.value.trim();
+        if (!baseTaskId) {
+            this.renderer.depthFilterCheckbox.checked = false;
+            this.renderer.showFilterError("先に基準タスクを設定してください");
+            return;
+        }
+        if (!/^\d+$/.test(depthText)) {
+            this.renderer.showFilterError("最大深さは0以上の整数で入力してください");
+            return;
+        }
+        const maxDepth = Number(depthText);
+        if (!Number.isSafeInteger(maxDepth)
+            || !this.app.setDepthFilter(baseTaskId, maxDepth)) {
+            this.renderer.showFilterError("最大深さと基準タスクを確認してください");
+            return;
+        }
+        this.renderer.showFilterError("");
+        this.renderer.render();
+    }
+
+    private clearSearchText = (): void => {
+        if (!this.app.clearSearchText()) return;
+        this.renderer.showFilterError("");
+        this.renderer.render();
+        this.renderer.searchInput.focus();
     }
 
     private onPointerDown = (event: PointerEvent): void => {
@@ -324,9 +455,11 @@ export class EventController {
             || target instanceof HTMLTextAreaElement
             || target instanceof HTMLSelectElement
             || (target instanceof HTMLElement && target.isContentEditable);
+        const modifier = event.ctrlKey || event.metaKey;
 
         if (event.key === "Escape") {
             this.renderer.toggleMenu(false);
+            this.renderer.toggleFilterPanel(false);
             if (this.renderer.taskDialog.open) {
                 this.renderer.closeTaskDialog();
             }
@@ -336,9 +469,62 @@ export class EventController {
             }
             return;
         }
+        if (modifier
+            && event.shiftKey
+            && event.key.toLowerCase() === "f"
+            && this.app.mode === AppMode.NORMAL) {
+            event.preventDefault();
+            if (this.app.clearSearchText()) {
+                this.renderer.showFilterError("");
+                this.renderer.render();
+                this.renderer.showMessage("検索条件をクリアしました");
+            }
+            return;
+        }
+        if (modifier
+            && event.key.toLowerCase() === "f"
+            && this.app.mode === AppMode.NORMAL) {
+            event.preventDefault();
+            if (this.app.getCurrentCanvas()) {
+                this.renderer.toggleMenu(false);
+                this.renderer.toggleFilterPanel(true);
+            }
+            return;
+        }
+        if (modifier && event.key.toLowerCase() === "s" && this.app.mode === AppMode.NORMAL) {
+            event.preventDefault();
+            this.saveState();
+            return;
+        }
         if (isEditingText) return;
 
-        const modifier = event.ctrlKey || event.metaKey;
+        if (modifier
+            && event.key.toLowerCase() === "c"
+            && this.app.mode === AppMode.NORMAL
+            && this.app.currentTaskId) {
+            event.preventDefault();
+            const copied = this.app.copyTaskToClipboard(this.app.currentTaskId);
+            this.renderer.showMessage(
+                copied ? "タスクをコピーしました" : "タスクをコピーできませんでした",
+                copied ? "info" : "error",
+            );
+            return;
+        }
+        if (modifier && event.key.toLowerCase() === "v" && this.app.mode === AppMode.NORMAL) {
+            event.preventDefault();
+            const rect = this.renderer.viewport.getBoundingClientRect();
+            const center = this.renderer.clientToCanvasPoint(
+                rect.left + rect.width / 2 - 100,
+                rect.top + rect.height / 2 - 45,
+            );
+            const pasted = this.app.pasteTask(center);
+            if (pasted) this.renderer.render();
+            this.renderer.showMessage(
+                pasted ? "タスクを貼り付けました" : "コピーされたタスクがありません",
+                pasted ? "info" : "error",
+            );
+            return;
+        }
         if (modifier && event.key.toLowerCase() === "z") {
             event.preventDefault();
             const succeeded = event.shiftKey ? this.app.redo() : this.app.undo();

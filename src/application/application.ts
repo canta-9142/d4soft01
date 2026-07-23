@@ -11,12 +11,22 @@ import {
 } from "../domain/entity-finders.js";
 import { ClipboardState } from "./clipboard-state.js";
 import {
+    FilterService,
+    type FilterResult,
+} from "../services/filter-service.js";
+import {
+    LocalStorageService,
+    type RestoreResult,
+} from "../services/local-storage-service.js";
+import { APP_STATE_VERSION } from "../validation/validators.js";
+import {
     createCanvasContextSnapshot,
     createCanvasSnapshot,
     createConnectionSnapshot,
     createDepthFilterSnapshot,
     createSelectionSnapshot,
     createTaskSnapshot,
+    createViewSettingsSnapshot,
     HistoryManager,
     HistoryOperationType,
     type TaskSnapshot,
@@ -25,10 +35,15 @@ import {
 export class AppState {
     version: string;
     canvases: Array<Canvas>;
-    currentCanvasId: string;
+    currentCanvasId: string | null;
     viewSettings: ViewSettings;
 
-    constructor(version: string, canvases: Array<Canvas> = [], currentCanvasId: string = "", viewSettings: ViewSettings = new ViewSettings()) {
+    constructor(
+        version: string = APP_STATE_VERSION,
+        canvases: Array<Canvas> = [],
+        currentCanvasId: string | null = null,
+        viewSettings: ViewSettings = new ViewSettings(),
+    ) {
         this.version = version;
         this.canvases = canvases;
         this.currentCanvasId = currentCanvasId;
@@ -38,22 +53,20 @@ export class AppState {
 
 export class Application {
     mode:AppMode = AppMode.NORMAL;
-    state = new AppState(this.generateVersionId());
+    state = new AppState();
     currentTaskId: string | null = null;
     currentConnectionId: string | null = null;
     connectionParentTaskId: string | null = null;
     clipboardState = new ClipboardState();
     historyManager = new HistoryManager();
     isDirty: boolean = false;
+    private savedStateSignature = this.stateSignature();
     private pendingTaskMove: Readonly<{
         canvasId: string;
         taskId: string;
         previousTask: TaskSnapshot;
     }> | null = null;
 
-    private generateVersionId(): string {
-        return "v-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
     private generateCanvasId(): string {
         return "canvas-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
     }
@@ -84,6 +97,33 @@ export class Application {
         return findTaskById(this.state.canvases, taskId);
     }
 
+    public getVisibleItems = (): FilterResult => {
+        const canvas = this.getCurrentCanvas();
+        if (!canvas) {
+            return { tasks: [], connections: [] };
+        }
+
+        const settings = this.state.viewSettings;
+        return FilterService.apply(
+            {
+                tasks: canvas.tasks,
+                connections: canvas.connections,
+            },
+            {
+                keyword: settings.searchText,
+                status: settings.statusFilter,
+                depth: settings.depthFilterEnabled
+                    && settings.depthBaseTaskId !== null
+                    && settings.maxDepth !== null
+                    ? {
+                        baseTaskId: settings.depthBaseTaskId,
+                        maxDepth: settings.maxDepth,
+                    }
+                    : null,
+            },
+        );
+    }
+
     // Canvas manipulation
     public createCanvas = (title: string = "新しいキャンバス"): void => {
         const normalizedTitle = title.trim() || "新しいキャンバス";
@@ -94,7 +134,8 @@ export class Application {
         this.currentConnectionId = null;
         this.connectionParentTaskId = null;
         this.mode = AppMode.NORMAL;
-        this.isDirty = true;
+        this.resetDepthFilter();
+        this.updateDirtyState();
     }
     public removeCanvas = (canvasId: string): boolean => {
         const index = this.state.canvases.findIndex(canvas => canvas.id === canvasId);
@@ -108,7 +149,7 @@ export class Application {
         if (this.state.currentCanvasId === canvasId) {
             this.state.currentCanvasId = this.state.canvases[index]?.id
                 ?? this.state.canvases[index - 1]?.id
-                ?? "";
+                ?? null;
         }
         this.currentTaskId = null;
         this.currentConnectionId = null;
@@ -124,9 +165,9 @@ export class Application {
             this.state.viewSettings.statusFilter = null;
             this.state.viewSettings.depthFilterEnabled = false;
             this.state.viewSettings.depthBaseTaskId = null;
-            this.state.viewSettings.maxDepth = 0;
+            this.state.viewSettings.maxDepth = null;
         }
-        this.isDirty = true;
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.CanvasDelete,
             canvasId,
@@ -144,25 +185,39 @@ export class Application {
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle) return false;
         canvas.updateTitle(normalizedTitle);
-        this.isDirty = true;
+        this.updateDirtyState();
         return true;
     }
     public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
         const canvas = findCanvasById(this.state.canvases, canvasId);
         if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return false;
         canvas.updatePosition(x, y);
-        this.isDirty = true;
+        this.updateDirtyState();
         return true;
     }
     public updateCanvasPosition = this.updateCanvasPosisiton;
     public changeCanvas = (canvasId: string): boolean => {
-        const id = findCanvasById(this.state.canvases, canvasId)?.id;
-        if (!id) return false;
-        this.state.currentCanvasId = id;
+        const destination = findCanvasById(this.state.canvases, canvasId);
+        if (!destination) return false;
+        const nextViewSettings = Object.assign(new ViewSettings(), this.state.viewSettings);
+        if (nextViewSettings.depthBaseTaskId !== null
+            && !destination.tasks.some(task => task.id === nextViewSettings.depthBaseTaskId)) {
+            this.resetDepthFilter(nextViewSettings);
+        }
+        const nextState = new AppState(
+            APP_STATE_VERSION,
+            this.state.canvases,
+            destination.id,
+            nextViewSettings,
+        );
+        if (!LocalStorageService.save(nextState)) return false;
+        this.state.currentCanvasId = destination.id;
+        this.state.viewSettings = nextViewSettings;
         this.currentTaskId = null;
         this.currentConnectionId = null;
         this.connectionParentTaskId = null;
         this.mode = AppMode.NORMAL;
+        this.rememberSavedState();
         return true;
     }
 
@@ -175,11 +230,13 @@ export class Application {
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle || !Number.isFinite(x) || !Number.isFinite(y)) return null;
         const previousSelection = createSelectionSnapshot(this);
+        const previousViewSettings = createViewSettingsSnapshot(this.state.viewSettings);
         const task = new Task(this.generateTaskId(), normalizedTitle, description, status, x, y);
         canvas.tasks.push(task);
+        this.resetFilters();
         this.currentTaskId = task.id;
         this.currentConnectionId = null;
-        this.isDirty = true;
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.TaskCreate,
             canvasId: canvas.id,
@@ -188,6 +245,10 @@ export class Application {
             selection: {
                 before: previousSelection,
                 after: createSelectionSnapshot(this),
+            },
+            viewSettings: {
+                before: previousViewSettings,
+                after: createViewSettingsSnapshot(this.state.viewSettings),
             },
         });
         return task.id;
@@ -276,7 +337,7 @@ export class Application {
             this.state.viewSettings.depthFilterEnabled = false;
             this.state.viewSettings.depthBaseTaskId = null;
         }
-        this.isDirty = true;
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.TaskDelete,
             canvasId: canvas.id,
@@ -310,7 +371,7 @@ export class Application {
         if (duplicated) return false;
         const connection = new Connection(this.generateConnectionId(), parentTaskId, childTaskId);
         canvas.connections.push(connection);
-        this.isDirty = true;
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.ConnectionCreate,
             canvasId: canvas.id,
@@ -332,7 +393,7 @@ export class Application {
         const previousSelection = createSelectionSnapshot(this);
         canvas.connections = canvas.connections.filter(connection => connection.id !== connectionId);
         if (this.currentConnectionId === connectionId) this.currentConnectionId = null;
-        this.isDirty = true;
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.ConnectionDelete,
             canvasId: canvas.id,
@@ -347,27 +408,41 @@ export class Application {
     }
 
     public copyTaskToClipboard = (taskId: string): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
-        if (!task) return false;
-        this.clipboardState.sourceTask = task;
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task) return false;
+        Object.assign(this.clipboardState, {
+            sourceTaskId: task.id,
+            sourceCanvasId: canvas.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            x: task.x,
+            y: task.y,
+        });
         return true;
     }
-    public pasteTask = (): boolean => {
-        const sourceTask = this.clipboardState.sourceTask;
-        if (!sourceTask) return false;
+    public pasteTask = (fallbackPosition: Readonly<{ x: number; y: number }> = { x: 40, y: 40 }): boolean => {
+        const clipboard = this.clipboardState;
+        if (!clipboard.hasTask
+            || !Number.isFinite(fallbackPosition.x)
+            || !Number.isFinite(fallbackPosition.y)) return false;
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
+        const useCopiedPosition = clipboard.sourceCanvasId === canvas.id
+            && canvas.tasks.some(task => task.id === clipboard.sourceTaskId);
         const previousSelection = createSelectionSnapshot(this);
         const newTask = new Task(this.generateTaskId());
-        newTask.title = sourceTask.title;
-        newTask.description = sourceTask.description;
-        newTask.status = sourceTask.status;
-        newTask.x = sourceTask.x + 24;
-        newTask.y = sourceTask.y + 24;
+        newTask.title = clipboard.title!;
+        newTask.description = clipboard.description!;
+        newTask.status = clipboard.status!;
+        newTask.x = useCopiedPosition ? clipboard.x! + 24 : fallbackPosition.x;
+        newTask.y = useCopiedPosition ? clipboard.y! + 24 : fallbackPosition.y;
         canvas.tasks.push(newTask);
         this.currentTaskId = newTask.id;
         this.currentConnectionId = null;
-        this.isDirty = true;
+        this.syncSelectionWithVisibleItems();
+        this.updateDirtyState();
         this.historyManager.record({
             type: HistoryOperationType.TaskPaste,
             canvasId: canvas.id,
@@ -386,7 +461,9 @@ export class Application {
         this.pendingTaskMove = null;
         const succeeded = this.historyManager.undo(this);
         if (succeeded) {
-            this.isDirty = true;
+            this.normalizeDepthFilterForCurrentCanvas();
+            this.syncSelectionWithVisibleItems();
+            this.updateDirtyState();
         }
         return succeeded;
     }
@@ -394,31 +471,87 @@ export class Application {
         this.pendingTaskMove = null;
         const succeeded = this.historyManager.redo(this);
         if (succeeded) {
-            this.isDirty = true;
+            this.normalizeDepthFilterForCurrentCanvas();
+            this.syncSelectionWithVisibleItems();
+            this.updateDirtyState();
         }
         return succeeded;
     }
 
     // Searching and Filters
-    public updateSearchText = (searchText: string): void => {
+    public updateSearchText = (searchText: string): boolean => {
+        if (!this.getCurrentCanvas()) return false;
         this.state.viewSettings.searchText = searchText;
+        this.afterFilterChange();
+        return true;
     }
-    public updateStatusFilter = (status: TaskStatus | null): void => {
+    public updateStatusFilter = (status: TaskStatus | null): boolean => {
+        if (!this.getCurrentCanvas()) return false;
+        if (status !== null && !Object.values(TaskStatus).includes(status)) return false;
         this.state.viewSettings.statusFilter = status;
+        this.afterFilterChange();
+        return true;
     }
 
-    public setDepthFilter = (baseTaskId: string | null, maxDepth: number): void => {
+    public setDepthFilterBaseTask = (baseTaskId: string): boolean => {
+        const canvas = this.getCurrentCanvas();
+        if (!canvas || !canvas.tasks.some(task => task.id === baseTaskId)) return false;
+        this.state.viewSettings.depthBaseTaskId = baseTaskId;
+        this.afterFilterChange();
+        return true;
+    }
+
+    public setDepthFilter = (baseTaskId: string | null, maxDepth: number): boolean => {
+        const canvas = this.getCurrentCanvas();
+        if (
+            !canvas
+            || baseTaskId === null
+            || !Number.isInteger(maxDepth)
+            || maxDepth < 0
+            || !canvas.tasks.some(task => task.id === baseTaskId)
+        ) {
+            return false;
+        }
         this.state.viewSettings.depthFilterEnabled = true;
         this.state.viewSettings.depthBaseTaskId = baseTaskId;
         this.state.viewSettings.maxDepth = maxDepth;
+        this.afterFilterChange();
+        return true;
     }
-    public clearDepthFilter = (): void => {
+    public clearDepthFilter = (): boolean => {
+        if (!this.getCurrentCanvas()) return false;
         this.state.viewSettings.depthFilterEnabled = false;
+        this.afterFilterChange();
+        return true;
     }
 
-    // 保存・復元は今回の実装範囲外。LocalStorageService の実装時に戻す。
-    // public save = (): boolean => { ... }
-    // public restore = (): boolean => { ... }
+    public clearSearchText = (): boolean => {
+        return this.updateSearchText("");
+    }
+
+    // Persistence
+    public save = (): boolean => {
+        if (this.mode !== AppMode.NORMAL || !LocalStorageService.save(this.state)) return false;
+        this.rememberSavedState();
+        return true;
+    }
+
+    public restore = (): RestoreResult => {
+        if (this.mode !== AppMode.NORMAL) {
+            return { success: false, state: null, errorMessage: "通常モードで復元してください" };
+        }
+        const result = LocalStorageService.load();
+        if (!result.success || !result.state) return result;
+        this.state = result.state;
+        this.currentTaskId = null;
+        this.currentConnectionId = null;
+        this.connectionParentTaskId = null;
+        this.pendingTaskMove = null;
+        this.clipboardState.clear();
+        this.historyManager.clear();
+        this.rememberSavedState();
+        return result;
+    }
 
     private mutateTask(
         taskId: string,
@@ -439,7 +572,10 @@ export class Application {
                 task: { before, after: createTaskSnapshot(task) },
             });
         }
-        this.isDirty = true;
+        if (type === HistoryOperationType.TaskEdit) {
+            this.syncSelectionWithVisibleItems();
+        }
+        this.updateDirtyState();
         return true;
     }
 
@@ -455,5 +591,64 @@ export class Application {
             targetId: task.id,
             task: { before, after: createTaskSnapshot(task) },
         });
+    }
+
+    private afterFilterChange(): void {
+        this.syncSelectionWithVisibleItems();
+        this.updateDirtyState();
+    }
+
+    private syncSelectionWithVisibleItems(): void {
+        const visible = this.getVisibleItems();
+        const visibleTaskIds = new Set(visible.tasks.map(task => task.id));
+        const visibleConnectionIds = new Set(visible.connections.map(connection => connection.id));
+        if (this.currentTaskId && !visibleTaskIds.has(this.currentTaskId)) {
+            this.currentTaskId = null;
+        }
+        if (this.currentConnectionId && !visibleConnectionIds.has(this.currentConnectionId)) {
+            this.currentConnectionId = null;
+        }
+        if (this.connectionParentTaskId && !visibleTaskIds.has(this.connectionParentTaskId)) {
+            this.connectionParentTaskId = null;
+        }
+    }
+
+    private resetFilters(): void {
+        this.state.viewSettings.searchText = "";
+        this.state.viewSettings.statusFilter = null;
+        this.resetDepthFilter();
+    }
+
+    private resetDepthFilter(settings: ViewSettings = this.state.viewSettings): void {
+        settings.depthFilterEnabled = false;
+        settings.depthBaseTaskId = null;
+        settings.maxDepth = null;
+    }
+
+    private normalizeDepthFilterForCurrentCanvas(): void {
+        const settings = this.state.viewSettings;
+        if (!settings.depthFilterEnabled) return;
+        const canvas = this.getCurrentCanvas();
+        if (!canvas
+            || settings.depthBaseTaskId === null
+            || settings.maxDepth === null
+            || !Number.isInteger(settings.maxDepth)
+            || settings.maxDepth < 0
+            || !canvas.tasks.some(task => task.id === settings.depthBaseTaskId)) {
+            this.resetDepthFilter(settings);
+        }
+    }
+
+    private stateSignature(): string {
+        return JSON.stringify(this.state);
+    }
+
+    private rememberSavedState(): void {
+        this.savedStateSignature = this.stateSignature();
+        this.isDirty = false;
+    }
+
+    private updateDirtyState(): void {
+        this.isDirty = this.stateSignature() !== this.savedStateSignature;
     }
 }

@@ -6,6 +6,7 @@ import {
     createCanvasContextSnapshot,
     createDepthFilterSnapshot,
     createSelectionSnapshot,
+    createViewSettingsSnapshot,
     HistoryOperationType,
     type CanvasContextSnapshot,
     type CanvasDeleteHistoryChange,
@@ -22,6 +23,7 @@ import {
     type TaskDeleteHistoryChange,
     type TaskSnapshot,
     type TaskUpdateHistoryChange,
+    type ViewSettingsSnapshot,
 } from "./history-types.js";
 
 export * from "./history-types.js";
@@ -116,6 +118,14 @@ export class HistoryManager {
         const [selectionFrom, selectionTo] = this.transition(change.selection, direction);
         const restoreSelection = target.state.currentCanvasId === change.canvasId
             && this.matches(createSelectionSnapshot(target), selectionFrom);
+        const viewSettingsTransition = change.type === HistoryOperationType.TaskCreate
+            ? this.transition(change.viewSettings, direction)
+            : null;
+        const restoreViewSettings = viewSettingsTransition !== null
+            && this.matches(
+                createViewSettingsSnapshot(target.state.viewSettings),
+                viewSettingsTransition[0],
+            );
 
         if (direction === "undo") {
             const index = canvas.tasks.findIndex(task => task.id === change.targetId);
@@ -130,6 +140,9 @@ export class HistoryManager {
             canvas.connections = canvas.connections.filter(connection => !removedConnectionIds.has(connection.id));
             if (restoreSelection) this.restoreSelection(target, selectionTo);
             else this.clearInvalidSelection(target, new Set([change.targetId]), removedConnectionIds);
+            if (restoreViewSettings && viewSettingsTransition) {
+                this.restoreViewSettings(target, viewSettingsTransition[1]);
+            }
             return true;
         }
 
@@ -137,6 +150,9 @@ export class HistoryManager {
             || !this.isInsertionIndex(change.task.index, canvas.tasks.length)) return false;
         canvas.tasks.splice(change.task.index, 0, this.restoreTask(change.task.value));
         if (restoreSelection) this.restoreSelection(target, selectionTo);
+        if (restoreViewSettings && viewSettingsTransition) {
+            this.restoreViewSettings(target, viewSettingsTransition[1]);
+        }
         return true;
     }
 
@@ -266,7 +282,7 @@ export class HistoryManager {
         if (target.state.currentCanvasId === change.canvasId) {
             target.state.currentCanvasId = target.state.canvases[index]?.id
                 ?? target.state.canvases[index - 1]?.id
-                ?? "";
+                ?? null;
         }
         this.clearInvalidSelection(target, removedTaskIds, removedConnectionIds);
         if (target.state.viewSettings.depthBaseTaskId
@@ -338,6 +354,10 @@ export class HistoryManager {
         Object.assign(target.state.viewSettings, snapshot);
     }
 
+    private restoreViewSettings(target: HistoryTarget, snapshot: ViewSettingsSnapshot): void {
+        Object.assign(target.state.viewSettings, snapshot);
+    }
+
     private restoreCanvasContext(target: HistoryTarget, snapshot: CanvasContextSnapshot): void {
         target.state.currentCanvasId = snapshot.currentCanvasId;
         this.restoreSelection(target, snapshot.selection);
@@ -364,7 +384,7 @@ export class HistoryManager {
             statusFilter: null,
             depthFilterEnabled: false,
             depthBaseTaskId: null,
-            maxDepth: 0,
+            maxDepth: null,
         });
     }
 
