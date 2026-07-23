@@ -217,6 +217,7 @@ export class EventController {
         if (this.app.mode !== AppMode.NORMAL) return;
         const task = this.app.getTask(taskId);
         if (!task) return;
+        if (!this.app.beginTaskMove(taskId)) return;
         this.renderer.render();
         this.drag = {
             kind: "task",
@@ -256,9 +257,13 @@ export class EventController {
         if (this.renderer.viewport.hasPointerCapture(event.pointerId)) {
             this.renderer.viewport.releasePointerCapture(event.pointerId);
         }
-        const moved = this.drag.moved;
+        const completedDrag = this.drag;
+        const moved = completedDrag.moved;
         this.drag = null;
         this.renderer.viewport.classList.remove("is-panning");
+        if (completedDrag.kind === "task" && completedDrag.taskId) {
+            this.app.finishTaskMove(completedDrag.taskId);
+        }
         if (moved) this.renderer.render();
     }
 
@@ -362,13 +367,23 @@ export class EventController {
         }
 
         const modifier = event.ctrlKey || event.metaKey;
-        if (modifier && event.key.toLowerCase() === "s") {
+        if (modifier && event.key.toLowerCase() === "z") {
             event.preventDefault();
-            this.saveApp();
+            const succeeded = event.shiftKey ? this.app.redo() : this.app.undo();
+            if (succeeded) {
+                this.renderer.render();
+                this.renderer.showMessage(event.shiftKey ? "操作をやり直しました" : "操作を取り消しました");
+            }
             return;
         }
-        if (isEditingText) return;
-
+        if (modifier && event.key.toLowerCase() === "y") {
+            event.preventDefault();
+            if (this.app.redo()) {
+                this.renderer.render();
+                this.renderer.showMessage("操作をやり直しました");
+            }
+            return;
+        }
         if (modifier
             && event.key.toLowerCase() === "e"
             && this.app.mode === AppMode.NORMAL
