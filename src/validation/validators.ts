@@ -1,39 +1,20 @@
-import { TaskStatus, type TaskStatus as TaskStatusValue } from "../domain/enums.js";
+import { APP_STATE_VERSION } from "../application/app-state.js";
+import type {
+    CanvasSnapshot,
+    ConnectionSnapshot,
+    TaskSnapshot,
+} from "../domain/entity-snapshots.js";
+import { isTaskStatus, type TaskStatus } from "../domain/enums.js";
 
-export const APP_STATE_VERSION = "1";
+export { APP_STATE_VERSION } from "../application/app-state.js";
 
-export type StoredTask = {
-    id: string;
-    title: string;
-    description: string;
-    status: TaskStatusValue;
-    x: number;
-    y: number;
-    createdAt: string;
-    updatedAt: string;
-};
-
-export type StoredConnection = {
-    id: string;
-    parentTaskId: string;
-    childTaskId: string;
-    createdAt: string;
-};
-
-export type StoredCanvas = {
-    id: string;
-    title: string;
-    tasks: StoredTask[];
-    connections: StoredConnection[];
-    x: number;
-    y: number;
-    createdAt: string;
-    updatedAt: string;
-};
+export type StoredTask = TaskSnapshot;
+export type StoredConnection = ConnectionSnapshot;
+export type StoredCanvas = CanvasSnapshot;
 
 export type StoredViewSettings = {
     searchText: string;
-    statusFilter: TaskStatusValue | null;
+    statusFilter: TaskStatus | null;
     depthFilterEnabled: boolean;
     depthBaseTaskId: string | null;
     maxDepth: number | null;
@@ -42,7 +23,7 @@ export type StoredViewSettings = {
 export type StoredAppState = {
     version: typeof APP_STATE_VERSION;
     currentCanvasId: string | null;
-    canvases: StoredCanvas[];
+    canvases: ReadonlyArray<StoredCanvas>;
     viewSettings: StoredViewSettings;
 };
 
@@ -65,11 +46,6 @@ const isIsoUtcDate = (value: unknown): value is string => {
     const parsed = new Date(value);
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
 };
-
-const isTaskStatus = (value: unknown): value is TaskStatusValue =>
-    value === TaskStatus.NOTSTARTED
-    || value === TaskStatus.INPROGRESS
-    || value === TaskStatus.COMPLETED;
 
 const invalid = (errorMessage: string): ValidationResult => ({ valid: false, errorMessage });
 

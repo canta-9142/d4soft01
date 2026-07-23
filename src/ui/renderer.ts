@@ -1,6 +1,7 @@
 import { Application } from "../application/application.js";
+import type { Connection } from "../domain/connection.js";
 import { AppMode, TaskStatus } from "../domain/enums.js";
-import { Task } from "../domain/task.js";
+import type { Task } from "../domain/task.js";
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
     [TaskStatus.NOTSTARTED]: "未着手",
@@ -30,6 +31,10 @@ export class Renderer {
     readonly deleteCanvasButton: HTMLButtonElement;
     readonly taskDialog: HTMLDialogElement;
     readonly taskForm: HTMLFormElement;
+    readonly operationGuideButton: HTMLButtonElement;
+    readonly operationGuideDialog: HTMLDialogElement;
+    readonly operationGuideCloseButton: HTMLButtonElement;
+    readonly operationGuideDoneButton: HTMLButtonElement;
 
     private readonly modeIndicator: HTMLElement;
     private readonly taskCount: HTMLElement;
@@ -63,6 +68,16 @@ export class Renderer {
         this.deleteCanvasButton = this.required("#deleteCanvasButton", HTMLButtonElement);
         this.taskDialog = this.required("#taskDialog", HTMLDialogElement);
         this.taskForm = this.required("#taskForm", HTMLFormElement);
+        this.operationGuideButton = this.required("#operationGuideButton", HTMLButtonElement);
+        this.operationGuideDialog = this.required("#operationGuideDialog", HTMLDialogElement);
+        this.operationGuideCloseButton = this.required(
+            "#operationGuideCloseButton",
+            HTMLButtonElement,
+        );
+        this.operationGuideDoneButton = this.required(
+            "#operationGuideDoneButton",
+            HTMLButtonElement,
+        );
         this.modeIndicator = this.required("#modeIndicator", HTMLElement);
         this.taskCount = this.required("#taskCount", HTMLElement);
         this.dirtyIndicator = this.required("#dirtyIndicator", HTMLElement);
@@ -128,19 +143,28 @@ export class Renderer {
             `接続 ${visible.connections.length}`,
         ].join(" / ");
         this.updateCanvasTransform();
-        this.renderConnections();
+        this.renderConnections(visible.connections);
     }
 
-    renderConnections = (): void => {
+    renderConnections = (
+        connections: readonly Connection[] = this.app.getVisibleItems().connections,
+    ): void => {
         this.connectionLayer.replaceChildren();
         const canvas = this.app.getCurrentCanvas();
         if (!canvas) return;
 
-        for (const connection of this.app.getVisibleItems().connections) {
-            const parent = this.app.getTask(connection.parentTaskId);
-            const child = this.app.getTask(connection.childTaskId);
-            const parentElement = this.taskElement(connection.parentTaskId);
-            const childElement = this.taskElement(connection.childTaskId);
+        const tasksById = new Map(canvas.tasks.map(task => [task.id, task]));
+        const elementsByTaskId = new Map(
+            [...this.taskLayer.querySelectorAll<HTMLElement>(".task-card")]
+                .flatMap(element => element.dataset.taskId
+                    ? [[element.dataset.taskId, element] as const]
+                    : []),
+        );
+        for (const connection of connections) {
+            const parent = tasksById.get(connection.parentTaskId);
+            const child = tasksById.get(connection.childTaskId);
+            const parentElement = elementsByTaskId.get(connection.parentTaskId);
+            const childElement = elementsByTaskId.get(connection.childTaskId);
             if (!parent || !child || !parentElement || !childElement) continue;
 
             const startX = parent.x + parentElement.offsetWidth / 2;
@@ -249,6 +273,22 @@ export class Renderer {
 
     closeTaskDialog = (): void => {
         if (this.taskDialog.open) this.taskDialog.close();
+    }
+
+    toggleOperationGuide = (force?: boolean): void => {
+        const shouldOpen = force ?? !this.operationGuideDialog.open;
+        if (shouldOpen === this.operationGuideDialog.open) {
+            this.operationGuideButton.setAttribute("aria-expanded", String(shouldOpen));
+            return;
+        }
+        if (shouldOpen) {
+            this.operationGuideDialog.showModal();
+            this.operationGuideButton.setAttribute("aria-expanded", "true");
+            window.requestAnimationFrame(() => this.operationGuideCloseButton.focus());
+            return;
+        }
+        this.operationGuideDialog.close();
+        this.operationGuideButton.setAttribute("aria-expanded", "false");
     }
 
     showTaskFormError = (text: string): void => {

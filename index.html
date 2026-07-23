@@ -103,9 +103,84 @@
                 <p class="tw:mt-0 tw:mb-5">キャンバスを作成してみましょう。</p>
                 <button id="emptyCreateCanvasButton" class="button primary tw:max-[720px]:px-[9px]" type="button">新規キャンバスを作成</button>
             </section>
+            <button
+                id="operationGuideButton"
+                class="operation-guide-button canvas-overlay-control"
+                type="button"
+                aria-haspopup="dialog"
+                aria-controls="operationGuideDialog"
+                aria-expanded="false"
+                title="操作一覧を表示 (Ctrl/Cmd+G)"
+            >
+                <span class="operation-guide-icon" aria-hidden="true">?</span>
+                <span>操作一覧</span>
+            </button>
         </main>
 
         <div id="message" class="message tw:fixed tw:right-[18px] tw:bottom-[18px] tw:z-[200] tw:max-w-[min(380px,calc(100vw-36px))] tw:px-3.5 tw:py-2.5" role="status" hidden></div>
+
+        <!-- 操作一覧ダイアログ -->
+        <dialog id="operationGuideDialog" class="operation-guide-dialog" aria-labelledby="operationGuideTitle">
+            <div class="operation-guide-shell">
+                <header class="operation-guide-header">
+                    <div class="tw:pt-3">
+                        <p class="operation-guide-eyebrow">QUICK GUIDE</p>
+                        <h2 id="operationGuideTitle">操作一覧</h2>
+                        <p class="tw:pt-2">キャンバス上の基本操作とキーボードショートカットです。</p>
+                    </div>
+                    <button id="operationGuideCloseButton" class="operation-guide-close" type="button" aria-label="操作一覧を閉じる">×</button>
+                </header>
+
+                <div class="operation-guide-content">
+                    <section class="operation-guide-section">
+                        <h3>マウス操作</h3>
+                        <dl class="operation-list">
+                            <div><dt>空白をダブルクリック</dt><dd>タスクを追加</dd></div>
+                            <div><dt>タスクをダブルクリック</dt><dd>タスクを編集</dd></div>
+                            <div><dt>タスクをドラッグ</dt><dd>タスクを移動</dd></div>
+                            <div><dt>空白をドラッグ</dt><dd>キャンバスを移動</dd></div>
+                            <div><dt>タスク / 接続線をクリック</dt><dd>操作対象を選択</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>タスク</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>A</kbd></dt><dd>タスクを追加</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>E</kbd></dt><dd>選択タスクを編集</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>C</kbd> / <kbd>V</kbd></dt><dd>選択タスクをコピー / 貼り付け</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>D</kbd> / <kbd>Delete</kbd></dt><dd>選択対象を削除</dd></div>
+                            <div><dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>前後のタスクを選択</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>キャンバスと表示</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>X</kbd></dt><dd>接続モードを切り替え</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>F</kbd></dt><dd>検索・絞り込みを表示</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>F</kbd></dt><dd>検索キーワードをクリア</dd></div>
+                            <div><dt><kbd>Shift</kbd><span>+</span><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>キャンバスを切り替え</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>履歴と共通操作</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>S</kbd></dt><dd>現在の状態を保存</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Z</kbd> / <kbd>Y</kbd></dt><dd>元に戻す / やり直す</dd></div>
+                            <div><dt><kbd>Esc</kbd></dt><dd>メニューや現在の操作を終了</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>G</kbd></dt><dd>この操作一覧を開く / 閉じる</dd></div>
+                        </dl>
+                    </section>
+                </div>
+
+                <footer class="operation-guide-footer">
+                    <span><kbd>Esc</kbd> でも閉じられます</span>
+                    <button id="operationGuideDoneButton" class="button primary" type="button">閉じる</button>
+                </footer>
+            </div>
+        </dialog>
 
         <!-- タスク追加・編集ダイアログ -->
         <dialog id="taskDialog" class="task-dialog tw:w-[min(480px,calc(100vw-32px))] tw:p-0">

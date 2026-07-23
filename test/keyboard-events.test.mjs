@@ -51,14 +51,47 @@ const keyboardEvent = (key, options = {}) => {
 
 const createRenderer = () => ({
     taskDialog: { open: false },
+    operationGuideDialog: { open: false },
     taskForm: { requestSubmit() {} },
     toggleMenu() {},
     toggleFilterPanel() {},
+    toggleOperationGuide(force) {
+        this.operationGuideDialog.open = force ?? !this.operationGuideDialog.open;
+    },
     closeTaskDialog() {
         this.taskDialog.open = false;
     },
     render() {},
     showMessage() {},
+});
+
+test("Ctrl+G toggles the operation guide, including while editing text", () => {
+    const restoreGlobals = installDomGlobals();
+    try {
+        const app = {
+            mode: AppMode.NORMAL,
+            setMode(mode) {
+                this.mode = mode;
+            },
+        };
+        const renderer = createRenderer();
+        const controller = new EventController(app, renderer);
+
+        const openEvent = keyboardEvent("g", {
+            target: new FakeInput(),
+            ctrlKey: true,
+        });
+        controller.onKeyDown(openEvent);
+        assert.equal(openEvent.prevented, true);
+        assert.equal(renderer.operationGuideDialog.open, true);
+
+        const closeEvent = keyboardEvent("g", { ctrlKey: true });
+        controller.onKeyDown(closeEvent);
+        assert.equal(closeEvent.prevented, true);
+        assert.equal(renderer.operationGuideDialog.open, false);
+    } finally {
+        restoreGlobals();
+    }
 });
 
 test("arrow keys select visible tasks and Shift+arrow switches canvases", () => {

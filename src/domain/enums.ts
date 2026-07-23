@@ -1,6 +1,6 @@
 export const AppMode = {
     NORMAL: "normal",
-    EDIT:"edit",
+    EDIT: "edit",
     CONNECT: "connect",
 } as const;
 export type AppMode = (typeof AppMode)[keyof typeof AppMode];
@@ -11,3 +11,8 @@ export const TaskStatus = {
     COMPLETED: "completed",
 } as const;
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+
+export const isTaskStatus = (value: unknown): value is TaskStatus =>
+    value === TaskStatus.NOTSTARTED
+    || value === TaskStatus.INPROGRESS
+    || value === TaskStatus.COMPLETED;

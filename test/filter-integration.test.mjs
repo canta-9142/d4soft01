@@ -179,3 +179,23 @@ test("redoing deletion clears a changed depth filter based on the deleted task",
     assert.equal(app.state.viewSettings.depthBaseTaskId, null);
     assert.equal(app.state.viewSettings.maxDepth, null);
 });
+
+test("depth filtering uses shortest undirected paths in a cyclic graph", () => {
+    const app = new Application();
+    app.createCanvas("canvas");
+    const firstId = addTask(app, "first", "", TaskStatus.NOTSTARTED);
+    const secondId = addTask(app, "second", "", TaskStatus.NOTSTARTED);
+    const thirdId = addTask(app, "third", "", TaskStatus.NOTSTARTED);
+    const fourthId = addTask(app, "fourth", "", TaskStatus.NOTSTARTED);
+
+    assert.equal(app.createConnection(firstId, secondId), true);
+    assert.equal(app.createConnection(secondId, thirdId), true);
+    assert.equal(app.createConnection(thirdId, firstId), true);
+    assert.equal(app.createConnection(thirdId, fourthId), true);
+
+    assert.equal(app.setDepthFilter(firstId, 1), true);
+    assert.deepEqual(
+        app.getVisibleItems().tasks.map(task => task.id),
+        [firstId, secondId, thirdId],
+    );
+});

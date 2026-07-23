@@ -1,14 +1,12 @@
-import { AppState } from "../application/application.js";
-import { Canvas } from "../domain/canvas.js";
-import { Connection } from "../domain/connection.js";
-import { Task } from "../domain/task.js";
+import { AppState } from "../application/app-state.js";
+import {
+    createCanvasSnapshot,
+    restoreCanvasSnapshot,
+} from "../domain/entity-snapshots.js";
 import { ViewSettings } from "../domain/view-settings.js";
 import {
     APP_STATE_VERSION,
     type StoredAppState,
-    type StoredCanvas,
-    type StoredConnection,
-    type StoredTask,
     validateStoredAppState,
 } from "../validation/validators.js";
 
@@ -80,30 +78,7 @@ export class LocalStorageService {
         return {
             version: APP_STATE_VERSION,
             currentCanvasId: state.currentCanvasId,
-            canvases: state.canvases.map(canvas => ({
-                id: canvas.id,
-                title: canvas.title,
-                tasks: canvas.tasks.map(task => ({
-                    id: task.id,
-                    title: task.title,
-                    description: task.description,
-                    status: task.status,
-                    x: task.x,
-                    y: task.y,
-                    createdAt: task.createdAt.toISOString(),
-                    updatedAt: task.updatedAt.toISOString(),
-                })),
-                connections: canvas.connections.map(connection => ({
-                    id: connection.id,
-                    parentTaskId: connection.parentTaskId,
-                    childTaskId: connection.childTaskId,
-                    createdAt: connection.createdAt.toISOString(),
-                })),
-                x: canvas.x,
-                y: canvas.y,
-                createdAt: canvas.createdAt.toISOString(),
-                updatedAt: canvas.updatedAt.toISOString(),
-            })),
+            canvases: state.canvases.map(createCanvasSnapshot),
             viewSettings: {
                 searchText: state.viewSettings.searchText,
                 statusFilter: state.viewSettings.statusFilter,
@@ -124,35 +99,9 @@ export class LocalStorageService {
         });
         return new AppState(
             APP_STATE_VERSION,
-            value.canvases.map(LocalStorageService.restoreCanvas),
+            value.canvases.map(restoreCanvasSnapshot),
             value.currentCanvasId,
             viewSettings,
-        );
-    }
-
-    private static restoreCanvas(value: StoredCanvas): Canvas {
-        return Object.assign(new Canvas(value.id, value.title, value.x, value.y), {
-            tasks: value.tasks.map(LocalStorageService.restoreTask),
-            connections: value.connections.map(LocalStorageService.restoreConnection),
-            createdAt: new Date(value.createdAt),
-            updatedAt: new Date(value.updatedAt),
-        });
-    }
-
-    private static restoreTask(value: StoredTask): Task {
-        return Object.assign(
-            new Task(value.id, value.title, value.description, value.status, value.x, value.y),
-            {
-                createdAt: new Date(value.createdAt),
-                updatedAt: new Date(value.updatedAt),
-            },
-        );
-    }
-
-    private static restoreConnection(value: StoredConnection): Connection {
-        return Object.assign(
-            new Connection(value.id, value.parentTaskId, value.childTaskId),
-            { createdAt: new Date(value.createdAt) },
         );
     }
 }

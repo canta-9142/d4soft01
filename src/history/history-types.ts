@@ -1,8 +1,26 @@
 import type { Canvas } from "../domain/canvas.js";
-import type { Connection } from "../domain/connection.js";
+import type {
+    CanvasSnapshot,
+    ConnectionSnapshot,
+    TaskSnapshot,
+} from "../domain/entity-snapshots.js";
 import type { TaskStatus } from "../domain/enums.js";
-import type { Task } from "../domain/task.js";
 import type { ViewSettings } from "../domain/view-settings.js";
+
+export {
+    applyTaskSnapshot,
+    createCanvasSnapshot,
+    createConnectionSnapshot,
+    createTaskSnapshot,
+    restoreCanvasSnapshot,
+    restoreConnectionSnapshot,
+    restoreTaskSnapshot,
+} from "../domain/entity-snapshots.js";
+export type {
+    CanvasSnapshot,
+    ConnectionSnapshot,
+    TaskSnapshot,
+} from "../domain/entity-snapshots.js";
 
 export enum HistoryOperationType {
     TaskCreate = "task-create",
@@ -14,35 +32,6 @@ export enum HistoryOperationType {
     TaskPaste = "task-paste",
     CanvasDelete = "canvas-delete",
 }
-
-export type TaskSnapshot = Readonly<{
-    id: string;
-    title: string;
-    description: string;
-    status: TaskStatus;
-    x: number;
-    y: number;
-    createdAt: string;
-    updatedAt: string;
-}>;
-
-export type ConnectionSnapshot = Readonly<{
-    id: string;
-    parentTaskId: string;
-    childTaskId: string;
-    createdAt: string;
-}>;
-
-export type CanvasSnapshot = Readonly<{
-    id: string;
-    title: string;
-    tasks: ReadonlyArray<TaskSnapshot>;
-    connections: ReadonlyArray<ConnectionSnapshot>;
-    x: number;
-    y: number;
-    createdAt: string;
-    updatedAt: string;
-}>;
 
 export type SelectionSnapshot = Readonly<{
     currentTaskId: string | null;
@@ -141,35 +130,6 @@ export interface HistoryTarget {
     currentConnectionId: string | null;
     connectionParentTaskId: string | null;
 }
-
-export const createTaskSnapshot = (task: Task): TaskSnapshot => ({
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    x: task.x,
-    y: task.y,
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-});
-
-export const createConnectionSnapshot = (connection: Connection): ConnectionSnapshot => ({
-    id: connection.id,
-    parentTaskId: connection.parentTaskId,
-    childTaskId: connection.childTaskId,
-    createdAt: connection.createdAt.toISOString(),
-});
-
-export const createCanvasSnapshot = (canvas: Canvas): CanvasSnapshot => ({
-    id: canvas.id,
-    title: canvas.title,
-    tasks: canvas.tasks.map(createTaskSnapshot),
-    connections: canvas.connections.map(createConnectionSnapshot),
-    x: canvas.x,
-    y: canvas.y,
-    createdAt: canvas.createdAt.toISOString(),
-    updatedAt: canvas.updatedAt.toISOString(),
-});
 
 export const createSelectionSnapshot = (target: HistoryTarget): SelectionSnapshot => ({
     currentTaskId: target.currentTaskId,

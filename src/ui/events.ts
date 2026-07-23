@@ -39,6 +39,30 @@ export class EventController {
         this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter()); // 新規タスク作成ボタン
         this.renderer.editTaskButton.addEventListener("click", this.openSelectedTaskEditor); // 選択中タスクの編集ボタン
         this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode); // 接続モード切替ボタン
+        this.renderer.operationGuideButton.addEventListener("pointerdown", event => {
+            event.stopPropagation();
+        });
+        this.renderer.operationGuideButton.addEventListener("click", event => {
+            event.stopPropagation();
+            this.renderer.toggleMenu(false);
+            this.renderer.toggleFilterPanel(false);
+            this.renderer.toggleOperationGuide();
+        });
+        this.renderer.operationGuideCloseButton.addEventListener("click", () => {
+            this.renderer.toggleOperationGuide(false);
+        });
+        this.renderer.operationGuideDoneButton.addEventListener("click", () => {
+            this.renderer.toggleOperationGuide(false);
+        });
+        this.renderer.operationGuideDialog.addEventListener("cancel", event => {
+            event.preventDefault();
+            this.renderer.toggleOperationGuide(false);
+        });
+        this.renderer.operationGuideDialog.addEventListener("click", event => {
+            if (event.target === this.renderer.operationGuideDialog) {
+                this.renderer.toggleOperationGuide(false);
+            }
+        });
         this.renderer.filterButton.addEventListener("click", event => {
             event.stopPropagation();
             this.renderer.toggleMenu(false);
@@ -464,6 +488,10 @@ export class EventController {
 
         if (event.key === "Escape") {
             event.preventDefault();
+            if (this.renderer.operationGuideDialog.open) {
+                this.renderer.toggleOperationGuide(false);
+                return;
+            }
             this.renderer.toggleMenu(false);
             this.renderer.toggleFilterPanel(false);
             if (this.renderer.taskDialog.open) {
@@ -473,6 +501,14 @@ export class EventController {
             this.renderer.render();
             return;
         }
+        if (modifier && event.key.toLowerCase() === "g") {
+            event.preventDefault();
+            this.renderer.toggleMenu(false);
+            this.renderer.toggleFilterPanel(false);
+            this.renderer.toggleOperationGuide();
+            return;
+        }
+        if (this.renderer.operationGuideDialog.open) return;
         if (this.renderer.taskDialog.open) {
             if (
                 event.key === "Enter"

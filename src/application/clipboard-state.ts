@@ -1,11 +1,21 @@
-import { TaskStatus, type TaskStatus as TaskStatusValue } from "../domain/enums.js";
+import { isTaskStatus, type TaskStatus } from "../domain/enums.js";
+
+export type ClipboardTaskSnapshot = Readonly<{
+    sourceTaskId: string;
+    sourceCanvasId: string;
+    title: string;
+    description: string;
+    status: TaskStatus;
+    x: number;
+    y: number;
+}>;
 
 export class ClipboardState {
     sourceTaskId: string | null = null;
     sourceCanvasId: string | null = null;
     title: string | null = null;
     description: string | null = null;
-    status: TaskStatusValue | null = null;
+    status: TaskStatus | null = null;
     x: number | null = null;
     y: number | null = null;
 
@@ -20,14 +30,27 @@ export class ClipboardState {
     }
 
     get hasTask(): boolean {
-        return this.sourceTaskId !== null
-            && this.sourceCanvasId !== null
-            && this.title !== null
-            && this.description !== null
-            && (this.status === TaskStatus.NOTSTARTED
-                || this.status === TaskStatus.INPROGRESS
-                || this.status === TaskStatus.COMPLETED)
-            && this.x !== null
-            && this.y !== null;
+        return this.taskSnapshot !== null;
+    }
+
+    get taskSnapshot(): ClipboardTaskSnapshot | null {
+        if (this.sourceTaskId === null
+            || this.sourceCanvasId === null
+            || this.title === null
+            || this.description === null
+            || !isTaskStatus(this.status)
+            || this.x === null
+            || this.y === null
+            || !Number.isFinite(this.x)
+            || !Number.isFinite(this.y)) return null;
+        return {
+            sourceTaskId: this.sourceTaskId,
+            sourceCanvasId: this.sourceCanvasId,
+            title: this.title,
+            description: this.description,
+            status: this.status,
+            x: this.x,
+            y: this.y,
+        };
     }
 }

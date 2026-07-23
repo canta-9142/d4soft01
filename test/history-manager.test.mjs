@@ -20,6 +20,15 @@ const createTask = (app, title, x = 10, y = 20) => {
     return id;
 };
 
+test("a canvas uses the specified default title", () => {
+    const app = new Application();
+    app.createCanvas();
+    assert.equal(app.getCurrentCanvas()?.title, "新規キャンバス");
+
+    app.createCanvas("   ");
+    assert.equal(app.getCurrentCanvas()?.title, "新規キャンバス");
+});
+
 test("task creation can be undone and redone with a real Task instance", () => {
     const app = new Application();
     createCanvas(app, "canvas");
@@ -259,4 +268,55 @@ test("only the latest fifty operations are retained", () => {
     assert.equal(app.undo(), false);
     assert.equal(app.getCurrentCanvas().tasks.length, 1);
     assert.equal(app.getCurrentCanvas().tasks[0].title, "task-0");
+});
+
+test("no-op updates preserve timestamps and do not create history entries", () => {
+    const app = new Application();
+    const canvasId = createCanvas(app, "canvas");
+    const taskId = createTask(app, "task", 10, 20);
+    const canvas = app.getCurrentCanvas();
+    const task = app.getTask(taskId);
+    const canvasUpdatedAt = canvas.updatedAt;
+    const taskUpdatedAt = task.updatedAt;
+    app.historyManager.clear();
+
+    assert.equal(app.updateCanvasTitle(canvasId, "canvas"), true);
+    assert.equal(app.updateCanvasPosition(canvasId, 0, 0), true);
+    assert.equal(
+        app.updateTask(taskId, "task", "description", TaskStatus.NOTSTARTED),
+        true,
+    );
+    assert.equal(app.updateTaskPosition(taskId, 10, 20), true);
+
+    assert.equal(canvas.updatedAt, canvasUpdatedAt);
+    assert.equal(task.updatedAt, taskUpdatedAt);
+    assert.equal(app.historyManager.canUndo(), false);
+});
+
+test("mutating another canvas preserves the current canvas selection", () => {
+    const app = new Application();
+    const firstCanvasId = createCanvas(app, "first");
+    const firstTaskId = createTask(app, "first task");
+    createCanvas(app, "second");
+    const secondTaskId = createTask(app, "second task");
+    app.currentTaskId = secondTaskId;
+    app.historyManager.clear();
+
+    assert.equal(app.removeTask(firstTaskId), true);
+    assert.equal(app.currentTaskId, secondTaskId);
+    assert.equal(app.removeCanvas(firstCanvasId), true);
+    assert.equal(app.currentTaskId, secondTaskId);
+    assert.equal(app.getTask(secondTaskId)?.title, "second task");
+});
+
+test("runtime-invalid task and clipboard values are rejected", () => {
+    const app = new Application();
+    createCanvas(app, "canvas");
+    assert.equal(app.createTaskAt("invalid", "", "unknown", 0, 0), null);
+
+    const taskId = createTask(app, "source");
+    assert.equal(app.copyTaskToClipboard(taskId), true);
+    app.clipboardState.x = Number.POSITIVE_INFINITY;
+    assert.equal(app.clipboardState.hasTask, false);
+    assert.equal(app.pasteTask(), false);
 });

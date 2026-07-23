@@ -1,4 +1,4 @@
-import { AppMode, TaskStatus } from "../domain/enums.js";
+import { AppMode, isTaskStatus, TaskStatus } from "../domain/enums.js";
 import { Task } from "../domain/task.js";
 import { Connection } from "../domain/connection.js";
 import { Canvas } from "../domain/canvas.js";
@@ -9,6 +9,7 @@ import {
     findCanvasByTaskId,
     findTaskById,
 } from "../domain/entity-finders.js";
+import { AppState } from "./app-state.js";
 import { ClipboardState } from "./clipboard-state.js";
 import {
     FilterService,
@@ -18,7 +19,6 @@ import {
     LocalStorageService,
     type RestoreResult,
 } from "../services/local-storage-service.js";
-import { APP_STATE_VERSION } from "../validation/validators.js";
 import {
     createCanvasContextSnapshot,
     createCanvasSnapshot,
@@ -32,27 +32,10 @@ import {
     type TaskSnapshot,
 } from "../history/history-manager.js";
 
-export class AppState {
-    version: string;
-    canvases: Array<Canvas>;
-    currentCanvasId: string | null;
-    viewSettings: ViewSettings;
-
-    constructor(
-        version: string = APP_STATE_VERSION,
-        canvases: Array<Canvas> = [],
-        currentCanvasId: string | null = null,
-        viewSettings: ViewSettings = new ViewSettings(),
-    ) {
-        this.version = version;
-        this.canvases = canvases;
-        this.currentCanvasId = currentCanvasId;
-        this.viewSettings = viewSettings;
-    }
-}
+export { AppState } from "./app-state.js";
 
 export class Application {
-    mode:AppMode = AppMode.NORMAL;
+    mode: AppMode = AppMode.NORMAL;
     state = new AppState();
     currentTaskId: string | null = null;
     currentConnectionId: string | null = null;
@@ -67,18 +50,10 @@ export class Application {
         previousTask: TaskSnapshot;
     }> | null = null;
 
-    private generateCanvasId(): string {
-        return "canvas-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
-    private generateTaskId(): string {
-        return "task-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
-    private generateConnectionId(): string {
-        return "connection-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
-    private generateDateString(): string {
-        const date = new Date();
-        return "" + date.getFullYear() + date.getMonth() + date.getDate() + date.getHours() + date.getMinutes() + date.getSeconds() + date.getMilliseconds();
+    private generateId(type: "canvas" | "task" | "connection"): string {
+        const randomPart = globalThis.crypto?.randomUUID?.()
+            ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        return `${type}-${randomPart}`;
     }
 
     // Public methods
@@ -125,9 +100,9 @@ export class Application {
     }
 
     // Canvas manipulation
-    public createCanvas = (title: string = "新しいキャンバス"): void => {
-        const normalizedTitle = title.trim() || "新しいキャンバス";
-        const canvas = new Canvas(this.generateCanvasId(), normalizedTitle);
+    public createCanvas = (title: string = "新規キャンバス"): void => {
+        const normalizedTitle = title.trim() || "新規キャンバス";
+        const canvas = new Canvas(this.generateId("canvas"), normalizedTitle);
         this.state.canvases.push(canvas);
         this.state.currentCanvasId = canvas.id;
         this.currentTaskId = null;
@@ -145,15 +120,20 @@ export class Application {
         const previousCanvasContext = createCanvasContextSnapshot(this);
         const canvasSnapshot = createCanvasSnapshot(canvas);
         const removedTaskIds = new Set(canvas.tasks.map(task => task.id));
+        const removedConnectionIds = new Set(canvas.connections.map(connection => connection.id));
         this.state.canvases.splice(index, 1);
         if (this.state.currentCanvasId === canvasId) {
             this.state.currentCanvasId = this.state.canvases[index]?.id
                 ?? this.state.canvases[index - 1]?.id
                 ?? null;
         }
-        this.currentTaskId = null;
-        this.currentConnectionId = null;
-        this.connectionParentTaskId = null;
+        if (this.currentTaskId && removedTaskIds.has(this.currentTaskId)) this.currentTaskId = null;
+        if (this.currentConnectionId && removedConnectionIds.has(this.currentConnectionId)) {
+            this.currentConnectionId = null;
+        }
+        if (this.connectionParentTaskId && removedTaskIds.has(this.connectionParentTaskId)) {
+            this.connectionParentTaskId = null;
+        }
         this.mode = AppMode.NORMAL;
         if (this.state.viewSettings.depthBaseTaskId
             && removedTaskIds.has(this.state.viewSettings.depthBaseTaskId)) {
@@ -161,11 +141,7 @@ export class Application {
             this.state.viewSettings.depthBaseTaskId = null;
         }
         if (this.state.canvases.length === 0) {
-            this.state.viewSettings.searchText = "";
-            this.state.viewSettings.statusFilter = null;
-            this.state.viewSettings.depthFilterEnabled = false;
-            this.state.viewSettings.depthBaseTaskId = null;
-            this.state.viewSettings.maxDepth = null;
+            this.state.viewSettings.reset();
         }
         this.updateDirtyState();
         this.historyManager.record({
@@ -184,18 +160,17 @@ export class Application {
         const canvas = findCanvasById(this.state.canvases, canvasId);
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle) return false;
-        canvas.updateTitle(normalizedTitle);
-        this.updateDirtyState();
+        if (canvas.updateTitle(normalizedTitle)) this.updateDirtyState();
         return true;
     }
-    public updateCanvasPosisiton = (canvasId: string, x: number, y: number): boolean => {
+    public updateCanvasPosition = (canvasId: string, x: number, y: number): boolean => {
         const canvas = findCanvasById(this.state.canvases, canvasId);
         if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-        canvas.updatePosition(x, y);
-        this.updateDirtyState();
+        if (canvas.updatePosition(x, y)) this.updateDirtyState();
         return true;
     }
-    public updateCanvasPosition = this.updateCanvasPosisiton;
+    /** @deprecated Use updateCanvasPosition. */
+    public updateCanvasPosisiton = this.updateCanvasPosition;
     public changeCanvas = (canvasId: string): boolean => {
         const destination = findCanvasById(this.state.canvases, canvasId);
         if (!destination) return false;
@@ -205,7 +180,7 @@ export class Application {
             this.resetDepthFilter(nextViewSettings);
         }
         const nextState = new AppState(
-            APP_STATE_VERSION,
+            this.state.version,
             this.state.canvases,
             destination.id,
             nextViewSettings,
@@ -228,10 +203,14 @@ export class Application {
     public createTaskAt = (title: string, description: string, status: TaskStatus, x: number, y: number): string | null => {
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         const normalizedTitle = title.trim();
-        if (!canvas || !normalizedTitle || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+        if (!canvas
+            || !normalizedTitle
+            || !isTaskStatus(status)
+            || !Number.isFinite(x)
+            || !Number.isFinite(y)) return null;
         const previousSelection = createSelectionSnapshot(this);
         const previousViewSettings = createViewSettingsSnapshot(this.state.viewSettings);
-        const task = new Task(this.generateTaskId(), normalizedTitle, description, status, x, y);
+        const task = new Task(this.generateId("task"), normalizedTitle, description, status, x, y);
         canvas.tasks.push(task);
         this.resetFilters();
         this.currentTaskId = task.id;
@@ -267,13 +246,13 @@ export class Application {
         );
     }
     public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
-        return Object.values(TaskStatus).includes(status)
+        return isTaskStatus(status)
             ? this.mutateTask(taskId, HistoryOperationType.TaskEdit, task => task.updateStatus(status))
             : false;
     }
     public updateTask = (taskId: string, title: string, description: string, status: TaskStatus): boolean => {
         const normalizedTitle = title.trim();
-        return normalizedTitle && Object.values(TaskStatus).includes(status)
+        return normalizedTitle && isTaskStatus(status)
             ? this.mutateTask(
                 taskId,
                 HistoryOperationType.TaskEdit,
@@ -326,13 +305,18 @@ export class Application {
                 ? [{ connection: createConnectionSnapshot(connection), index }]
                 : [],
         );
+        const removedConnectionIds = new Set(
+            removedConnections.map(item => item.connection.id),
+        );
         canvas.tasks = canvas.tasks.filter(task => task.id !== taskId);
         canvas.connections = canvas.connections.filter(connection =>
             connection.parentTaskId !== taskId && connection.childTaskId !== taskId
         );
         if (this.currentTaskId === taskId) this.currentTaskId = null;
         if (this.connectionParentTaskId === taskId) this.connectionParentTaskId = null;
-        this.currentConnectionId = null;
+        if (this.currentConnectionId && removedConnectionIds.has(this.currentConnectionId)) {
+            this.currentConnectionId = null;
+        }
         if (this.state.viewSettings.depthBaseTaskId === taskId) {
             this.state.viewSettings.depthFilterEnabled = false;
             this.state.viewSettings.depthBaseTaskId = null;
@@ -369,7 +353,7 @@ export class Application {
             connection.parentTaskId === parentTaskId && connection.childTaskId === childTaskId
         );
         if (duplicated) return false;
-        const connection = new Connection(this.generateConnectionId(), parentTaskId, childTaskId);
+        const connection = new Connection(this.generateId("connection"), parentTaskId, childTaskId);
         canvas.connections.push(connection);
         this.updateDirtyState();
         this.historyManager.record({
@@ -423,21 +407,23 @@ export class Application {
         return true;
     }
     public pasteTask = (fallbackPosition: Readonly<{ x: number; y: number }> = { x: 40, y: 40 }): boolean => {
-        const clipboard = this.clipboardState;
-        if (!clipboard.hasTask
+        const snapshot = this.clipboardState.taskSnapshot;
+        if (!snapshot
             || !Number.isFinite(fallbackPosition.x)
             || !Number.isFinite(fallbackPosition.y)) return false;
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
-        const useCopiedPosition = clipboard.sourceCanvasId === canvas.id
-            && canvas.tasks.some(task => task.id === clipboard.sourceTaskId);
+        const useCopiedPosition = snapshot.sourceCanvasId === canvas.id
+            && canvas.tasks.some(task => task.id === snapshot.sourceTaskId);
         const previousSelection = createSelectionSnapshot(this);
-        const newTask = new Task(this.generateTaskId());
-        newTask.title = clipboard.title!;
-        newTask.description = clipboard.description!;
-        newTask.status = clipboard.status!;
-        newTask.x = useCopiedPosition ? clipboard.x! + 24 : fallbackPosition.x;
-        newTask.y = useCopiedPosition ? clipboard.y! + 24 : fallbackPosition.y;
+        const newTask = new Task(
+            this.generateId("task"),
+            snapshot.title,
+            snapshot.description,
+            snapshot.status,
+            useCopiedPosition ? snapshot.x + 24 : fallbackPosition.x,
+            useCopiedPosition ? snapshot.y + 24 : fallbackPosition.y,
+        );
         canvas.tasks.push(newTask);
         this.currentTaskId = newTask.id;
         this.currentConnectionId = null;
@@ -487,7 +473,7 @@ export class Application {
     }
     public updateStatusFilter = (status: TaskStatus | null): boolean => {
         if (!this.getCurrentCanvas()) return false;
-        if (status !== null && !Object.values(TaskStatus).includes(status)) return false;
+        if (status !== null && !isTaskStatus(status)) return false;
         this.state.viewSettings.statusFilter = status;
         this.afterFilterChange();
         return true;
@@ -556,14 +542,14 @@ export class Application {
     private mutateTask(
         taskId: string,
         type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove,
-        mutate: (task: Task) => void,
+        mutate: (task: Task) => boolean,
         recordHistory = true,
     ): boolean {
         const canvas = findCanvasByTaskId(this.state.canvases, taskId);
         const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         if (!canvas || !task) return false;
         const before = createTaskSnapshot(task);
-        mutate(task);
+        if (!mutate(task)) return true;
         if (recordHistory) {
             this.historyManager.record({
                 type,
@@ -614,15 +600,11 @@ export class Application {
     }
 
     private resetFilters(): void {
-        this.state.viewSettings.searchText = "";
-        this.state.viewSettings.statusFilter = null;
-        this.resetDepthFilter();
+        this.state.viewSettings.reset();
     }
 
     private resetDepthFilter(settings: ViewSettings = this.state.viewSettings): void {
-        settings.depthFilterEnabled = false;
-        settings.depthBaseTaskId = null;
-        settings.maxDepth = null;
+        settings.resetDepth();
     }
 
     private normalizeDepthFilterForCurrentCanvas(): void {

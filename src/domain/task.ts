@@ -21,35 +21,47 @@ export class Task {
         this.updatedAt = new Date();
     }
 
-    public updateTitle = (title: string): void => {
+    public updateTitle = (title: string): boolean => {
+        if (this.title === title) return false;
         this.title = title;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    public updateDescription = (description: string): void => {
+    public updateDescription = (description: string): boolean => {
+        if (this.description === description) return false;
         this.description = description;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    public updateStatus = (status: TaskStatus): void => {
+    public updateStatus = (status: TaskStatus): boolean => {
+        if (this.status === status) return false;
         this.status = status;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    public updateDetails = (title: string, description: string, status: TaskStatus): void => {
+    public updateDetails = (title: string, description: string, status: TaskStatus): boolean => {
+        if (this.title === title && this.description === description && this.status === status) {
+            return false;
+        }
         this.title = title;
         this.description = description;
         this.status = status;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    public updatePosition = (x: number, y: number): void => {
+    public updatePosition = (x: number, y: number): boolean => {
+        if (this.x === x && this.y === y) return false;
         this.x = x;
         this.y = y;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    private updateTimestamp = (updatedAt: Date): void => {
-        this.updatedAt = updatedAt;
+    private updateTimestamp = (): void => {
+        this.updatedAt = new Date();
     }
 }

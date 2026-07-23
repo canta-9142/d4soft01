@@ -1,5 +1,5 @@
-import { Task } from "./task.js";
-import { Connection } from "./connection.js";
+import type { Connection } from "./connection.js";
+import type { Task } from "./task.js";
 
 export class Canvas {
     id: string;
@@ -22,16 +22,22 @@ export class Canvas {
         this.updatedAt = new Date();
     }
 
-    public updateTitle = (title: string): void => {
+    public updateTitle = (title: string): boolean => {
+        if (this.title === title) return false;
         this.title = title;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
-    public updatePosition = (x: number, y: number): void => {
+
+    public updatePosition = (x: number, y: number): boolean => {
+        if (this.x === x && this.y === y) return false;
         this.x = x;
         this.y = y;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
-    private updateTimestamp = (updatedAt: Date): void => {
-        this.updatedAt = updatedAt;
+
+    private updateTimestamp = (): void => {
+        this.updatedAt = new Date();
     }
 }

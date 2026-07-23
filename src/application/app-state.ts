@@ -1,14 +1,16 @@
-import { Canvas } from "../domain/canvas.js";
+import type { Canvas } from "../domain/canvas.js";
 import { ViewSettings } from "../domain/view-settings.js";
 
+export const APP_STATE_VERSION = "1";
+
 export class AppState {
-    version: string;
+    version: typeof APP_STATE_VERSION;
     canvases: Array<Canvas>;
     currentCanvasId: string | null;
     viewSettings: ViewSettings;
 
     constructor(
-        version: string = "1",
+        version: typeof APP_STATE_VERSION = APP_STATE_VERSION,
         canvases: Array<Canvas> = [],
         currentCanvasId: string | null = null,
         viewSettings: ViewSettings = new ViewSettings(),
