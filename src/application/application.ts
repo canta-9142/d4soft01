@@ -2,7 +2,6 @@ import { AppMode, TaskStatus } from "../domain/enums.js";
 import { Task } from "../domain/task.js";
 import { Connection } from "../domain/connection.js";
 import { Canvas } from "../domain/canvas.js";
-import { ViewSettings } from "../domain/view-settings.js";
 import {
     findCanvasByConnectionId,
     findCanvasById,
@@ -10,25 +9,18 @@ import {
     findTaskById,
 } from "../domain/entity-finders.js";
 import { ClipboardState } from "./clipboard-state.js";
+import { AppState } from "./app-state.js";
 import { HistoryManager } from "../history/history-manager.js";
+import {
+    LocalStorageService,
+    type RestoreResult,
+} from "../services/local-storage-service.js";
 
-export class AppState {
-    version: string;
-    canvases: Array<Canvas>;
-    currentCanvasId: string;
-    viewSettings: ViewSettings;
-
-    constructor(version: string, canvases: Array<Canvas> = [], currentCanvasId: string = "", viewSettings: ViewSettings = new ViewSettings()) {
-        this.version = version;
-        this.canvases = canvases;
-        this.currentCanvasId = currentCanvasId;
-        this.viewSettings = viewSettings;
-    }
-}
+export { AppState } from "./app-state.js";
 
 export class Application {
     mode:AppMode = AppMode.NORMAL;
-    state = new AppState(this.generateVersionId());
+    state = new AppState();
     currentTaskId: string | null = null;
     currentConnectionId: string | null = null;
     connectionParentTaskId: string | null = null;
@@ -36,9 +28,6 @@ export class Application {
     historyManager = new HistoryManager();
     isDirty: boolean = false;
 
-    private generateVersionId(): string {
-        return "v-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
-    }
     private generateCanvasId(): string {
         return "canvas-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
     }
@@ -88,7 +77,7 @@ export class Application {
         if (this.state.currentCanvasId === canvasId) {
             this.state.currentCanvasId = this.state.canvases[index]?.id
                 ?? this.state.canvases[index - 1]?.id
-                ?? "";
+                ?? null;
         }
         this.currentTaskId = null;
         this.currentConnectionId = null;
@@ -115,12 +104,18 @@ export class Application {
     public updateCanvasPosition = this.updateCanvasPosisiton;
     public changeCanvas = (canvasId: string): boolean => {
         const id = findCanvasById(this.state.canvases, canvasId)?.id;
-        if (!id) return false;
+        if (!id || this.mode !== AppMode.NORMAL) return false;
+
+        // 切替先IDを含む状態を先に保存し、成功した場合だけ切替を確定する。
+        const previousCanvasId = this.state.currentCanvasId;
         this.state.currentCanvasId = id;
-        this.currentTaskId = null;
-        this.currentConnectionId = null;
-        this.connectionParentTaskId = null;
-        this.mode = AppMode.NORMAL;
+        if (!LocalStorageService.save(this.state)) {
+            this.state.currentCanvasId = previousCanvasId;
+            return false;
+        }
+
+        this.resetTransientState();
+        this.isDirty = false;
         return true;
     }
 
@@ -232,6 +227,7 @@ export class Application {
         newTask.x = sourceTask.x + 10; // Offset to avoid overlap
         newTask.y = sourceTask.y + 10; // Offset to avoid overlap
         canvas.tasks.push(newTask);
+        this.isDirty = true;
         return true;
     }
 
@@ -249,22 +245,59 @@ export class Application {
 
     // Searching and Filters
     public updateSearchText = (searchText: string): void => {
+        if (this.state.viewSettings.searchText === searchText) return;
         this.state.viewSettings.searchText = searchText;
+        this.isDirty = true;
     }
     public updateStatusFilter = (status: TaskStatus | null): void => {
+        if (this.state.viewSettings.statusFilter === status) return;
         this.state.viewSettings.statusFilter = status;
+        this.isDirty = true;
     }
 
     public setDepthFilter = (baseTaskId: string | null, maxDepth: number): void => {
         this.state.viewSettings.depthFilterEnabled = true;
         this.state.viewSettings.depthBaseTaskId = baseTaskId;
         this.state.viewSettings.maxDepth = maxDepth;
+        this.isDirty = true;
     }
     public clearDepthFilter = (): void => {
+        if (!this.state.viewSettings.depthFilterEnabled) return;
         this.state.viewSettings.depthFilterEnabled = false;
+        this.isDirty = true;
     }
 
-    // 保存・復元は今回の実装範囲外。LocalStorageService の実装時に戻す。
-    // public save = (): boolean => { ... }
-    // public restore = (): boolean => { ... }
+    public save = (): boolean => {
+        if (this.mode !== AppMode.NORMAL) return false;
+        if (!LocalStorageService.save(this.state)) return false;
+        this.isDirty = false;
+        return true;
+    }
+
+    public restore = (): RestoreResult => {
+        if (this.mode !== AppMode.NORMAL) {
+            return {
+                success: false,
+                state: null,
+                errorMessage: "通常モードでのみ復元できます",
+            };
+        }
+
+        const result = LocalStorageService.load();
+        if (!result.success) return result;
+
+        this.state = result.state;
+        this.resetTransientState();
+        this.historyManager.clear();
+        this.clipboardState = new ClipboardState();
+        this.isDirty = false;
+        return result;
+    }
+
+    private resetTransientState(): void {
+        this.currentTaskId = null;
+        this.currentConnectionId = null;
+        this.connectionParentTaskId = null;
+        this.mode = AppMode.NORMAL;
+    }
 }

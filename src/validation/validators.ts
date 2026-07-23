@@ -1,9 +1,6 @@
-import { AppState } from "../application/application.js";
-import { Canvas } from "../domain/canvas.js";
-import { Task } from "../domain/task.js";
-import { Connection } from "../domain/connection.js";
-import { ViewSettings } from "../domain/view-settings.js";
 import { TaskStatus } from "../domain/enums.js";
+
+export const STORAGE_FORMAT_VERSION = "1";
 
 // 有限の数値かどうかを判定する(NaNやInfinity、数値以外の値を弾く)
 export function isFiniteNumber(value: unknown): value is number {
@@ -34,8 +31,10 @@ export function isValidTaskStatus(value: unknown): value is TaskStatus {
     );
 }
 
-// Date.prototype.toISOString()が出力する形式(YYYY-MM-DDTHH:mm:ss.sssZ)にのみマッチする正規表現
-const ISO_8601_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+// Date.prototype.toISOString()が出力する形式にのみマッチする正規表現。
+// 通常の4桁年に加え、Dateが扱える範囲の拡張年表記(+010000など)も許可する。
+const ISO_8601_UTC_PATTERN =
+    /^(?:\d{4}|[+-]\d{6})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 // Dateとして正しく解釈できる値かどうかを判定する
 // 文字列の場合はtoISOString()相当のUTC ISO 8601形式のみを許容する
@@ -43,13 +42,17 @@ const ISO_8601_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 function isValidDateValue(value: unknown): boolean {
     if (value instanceof Date) return !Number.isNaN(value.getTime());
     if (typeof value === "string" && ISO_8601_UTC_PATTERN.test(value)) {
-        return !Number.isNaN(new Date(value).getTime());
+        const date = new Date(value);
+        return !Number.isNaN(date.getTime()) && date.toISOString() === value;
     }
     return false;
 }
 
 // タスク単体の形式チェック(ID重複チェックは呼び出し側でまとめて行う)
-function isValidTaskShape(task: unknown): task is Task {
+function isValidTaskShape(task: unknown): task is Record<string, unknown> & {
+    id: string;
+    title: string;
+} {
     if (!isObject(task)) return false;
     return (
         isNonBlankString(task.id) &&
@@ -64,7 +67,11 @@ function isValidTaskShape(task: unknown): task is Task {
 }
 
 // 接続単体の形式チェック(参照先タスクの実在チェックは呼び出し側で行う)
-function isValidConnectionShape(connection: unknown): connection is Connection {
+function isValidConnectionShape(connection: unknown): connection is Record<string, unknown> & {
+    id: string;
+    parentTaskId: string;
+    childTaskId: string;
+} {
     if (!isObject(connection)) return false;
     return (
         isNonBlankString(connection.id) &&
@@ -76,7 +83,11 @@ function isValidConnectionShape(connection: unknown): connection is Connection {
 }
 
 // キャンバス単体の形式チェック(id, title, x, y, tasks/connections配列の有無)
-function isValidCanvasShape(canvas: unknown): canvas is Canvas {
+function isValidCanvasShape(canvas: unknown): canvas is Record<string, unknown> & {
+    id: string;
+    tasks: unknown[];
+    connections: unknown[];
+} {
     if (!isObject(canvas)) return false;
     return (
         isNonBlankString(canvas.id) &&
@@ -91,14 +102,18 @@ function isValidCanvasShape(canvas: unknown): canvas is Canvas {
 }
 
 // ViewSettings単体の形式チェック(検索条件・ステータス絞り込み・深さフィルターそれぞれの型)
-function isValidViewSettingsShape(viewSettings: unknown): viewSettings is ViewSettings {
+function isValidViewSettingsShape(viewSettings: unknown): viewSettings is Record<string, unknown> & {
+    depthFilterEnabled: boolean;
+    depthBaseTaskId: string | null;
+    maxDepth: number | null;
+} {
     if (!isObject(viewSettings)) return false;
     return (
         typeof viewSettings.searchText === "string" &&
         (viewSettings.statusFilter === null || isValidTaskStatus(viewSettings.statusFilter)) &&
         typeof viewSettings.depthFilterEnabled === "boolean" &&
         (viewSettings.depthBaseTaskId === null || isNonBlankString(viewSettings.depthBaseTaskId)) &&
-        typeof viewSettings.maxDepth === "number"
+        (viewSettings.maxDepth === null || isFiniteNumber(viewSettings.maxDepth))
     );
 }
 
@@ -110,11 +125,11 @@ function hasNoDuplicateIds(ids: string[]): boolean {
 // アプリ状態全体がspec.md 5.9節の保存条件を満たすかどうかを検証する
 // stateは「AppStateのつもりで渡ってくる値」であり、実行時に不正な形式でも
 // 例外を投げず必ずfalseを返す(信頼できない値として扱う)
-export function validateAppStateForSave(state: unknown): boolean {
+function validateAppState(state: unknown): boolean {
     if (!isObject(state)) return false;
 
-    // versionの形式チェック
-    if (!isNonBlankString(state.version)) return false;
+    // 現在対応している保存形式以外は保存・復元しない
+    if (state.version !== STORAGE_FORMAT_VERSION) return false;
 
     // canvasesが配列であり、各要素がCanvasとして正しい形式かどうかをチェック
     if (!isArrayOf(state.canvases, isValidCanvasShape)) return false;
@@ -126,13 +141,16 @@ export function validateAppStateForSave(state: unknown): boolean {
 
     // タスクID・接続IDは「保存データ全体」で重複してはいけないため、
     // 各キャンバスを走査しながら全体分のIDを集めておく
-    const allTaskIds: string[] = [];
-    const allConnectionIds: string[] = [];
+    const allTaskIds = new Set<string>();
+    const allConnectionIds = new Set<string>();
 
     for (const canvas of canvases) {
         // タスク単体の形式チェック
         if (!isArrayOf(canvas.tasks, isValidTaskShape)) return false;
-        allTaskIds.push(...canvas.tasks.map(t => t.id));
+        for (const task of canvas.tasks) {
+            if (allTaskIds.has(task.id)) return false;
+            allTaskIds.add(task.id);
+        }
 
         // このキャンバス内のタスクIDの集合(接続の参照先チェックに使う)
         const taskIdSetInCanvas = new Set(canvas.tasks.map(t => t.id));
@@ -147,24 +165,22 @@ export function validateAppStateForSave(state: unknown): boolean {
                 return false;
             }
         }
-        allConnectionIds.push(...canvas.connections.map(c => c.id));
+        for (const connection of canvas.connections) {
+            if (allConnectionIds.has(connection.id)) return false;
+            allConnectionIds.add(connection.id);
+        }
 
         // 同一キャンバス内で「同じ向き・同じ親子ID」の接続が重複していないか
         const directionKeys = canvas.connections.map(
-            c => `${c.parentTaskId}->${c.childTaskId}`
+            c => JSON.stringify([c.parentTaskId, c.childTaskId])
         );
         if (!hasNoDuplicateIds(directionKeys)) return false;
     }
 
-    // タスクID・接続IDが保存データ全体で重複していないか
-    if (!hasNoDuplicateIds(allTaskIds)) return false;
-    if (!hasNoDuplicateIds(allConnectionIds)) return false;
-
     // currentCanvasIdの整合性チェック
-    // (AppState.currentCanvasIdはstring型でnullを許容しないため、
-    //  キャンバスが無ければ空文字、あれば実在するキャンバスを指していること)
+    // キャンバスが無ければnull、あれば実在するキャンバスを指していること
     if (canvases.length === 0) {
-        if (state.currentCanvasId !== "") return false;
+        if (state.currentCanvasId !== null) return false;
     } else {
         if (!isNonBlankString(state.currentCanvasId)) return false;
         if (!canvasIds.includes(state.currentCanvasId)) return false;
@@ -181,11 +197,12 @@ export function validateAppStateForSave(state: unknown): boolean {
         if (!currentCanvas) return false;
 
         const baseTaskExists = currentCanvas.tasks.some(
-            t => t.id === viewSettings.depthBaseTaskId
+            t => isValidTaskShape(t) && t.id === viewSettings.depthBaseTaskId
         );
         if (!baseTaskExists) return false;
 
         if (
+            viewSettings.maxDepth === null ||
             !Number.isInteger(viewSettings.maxDepth) ||
             viewSettings.maxDepth < 0
         ) {
@@ -194,4 +211,14 @@ export function validateAppStateForSave(state: unknown): boolean {
     }
 
     return true;
+}
+
+export function validateAppStateForSave(state: unknown): boolean {
+    try {
+        return validateAppState(state);
+    } catch {
+        // Proxyやgetterを含む値など、通常のJSONでは現れない入力でも
+        // 呼び出し側へ例外を漏らさず、検証失敗として扱う。
+        return false;
+    }
 }
