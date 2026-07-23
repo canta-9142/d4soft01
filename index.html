@@ -8,61 +8,61 @@
         <link rel="stylesheet" href="./dist/tailwind.css">
     </head>
     <body>
-        <header class="menubar">
-            <div class="menu-anchor">
-                <button id="hamburger" class="icon-button" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
+        <header class="menubar tw:relative tw:z-[100] tw:flex tw:h-[58px] tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-2.5 tw:max-[720px]:gap-1.5 tw:max-[720px]:px-2">
+            <div class="tw:relative">
+                <button id="hamburger" class="icon-button tw:w-9 tw:px-0" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
                     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                         <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
                     </svg>
                 </button>
-                <aside id="canvasMenu" class="canvas-menu" hidden>
-                    <div class="menu-heading">キャンバス</div>
-                    <div id="canvasList" class="canvas-list"></div>
-                    <button id="newCanvasButton" class="menu-action" type="button">＋ 新規キャンバス</button>
+                <aside id="canvasMenu" class="canvas-menu tw:absolute tw:top-[43px] tw:left-0 tw:w-[250px] tw:p-2" hidden>
+                    <div class="menu-heading tw:px-[9px] tw:py-[7px] tw:text-xs tw:font-[650]">キャンバス</div>
+                    <div id="canvasList" class="canvas-list tw:grid tw:max-h-[260px] tw:gap-0.5 tw:overflow-auto"></div>
+                    <button id="newCanvasButton" class="menu-action tw:mt-1.5" type="button">＋ 新規キャンバス</button>
                 </aside>
             </div>
 
-            <input id="canvasTitleInput" class="canvas-title-input" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
+            <input id="canvasTitleInput" class="canvas-title-input tw:h-[34px] tw:w-[min(300px,34vw)] tw:px-2.5 tw:font-[650] tw:max-[720px]:min-w-0 tw:max-[720px]:flex-1" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
 
-            <div class="toolbar-status" aria-live="polite">
-                <span id="modeIndicator" class="mode-indicator">通常モード</span>
-                <span id="taskCount">タスク 0</span>
-                <span id="dirtyIndicator">変更なし</span>
+            <div class="toolbar-status tw:flex tw:min-w-0 tw:items-center tw:gap-3 tw:text-xs" aria-live="polite">
+                <span id="modeIndicator" class="mode-indicator tw:rounded-full tw:px-2 tw:py-1 tw:whitespace-nowrap">通常モード</span>
+                <span id="taskCount" class="tw:max-[720px]:hidden">タスク 0</span>
+                <span id="dirtyIndicator" class="tw:max-[720px]:hidden">変更なし</span>
             </div>
 
-            <div class="toolbar-actions">
-                <button id="addTaskButton" class="button" type="button" disabled>＋ タスクを追加</button>
-                <button id="editTaskButton" class="button" type="button" title="選択中のタスクを編集 (Ctrl/Cmd+E)" disabled>タスクを編集</button>
-                <button id="connectModeButton" class="button" type="button" aria-pressed="false" disabled>接続を作成</button>
+            <div class="tw:ml-auto tw:flex tw:gap-2">
+                <button id="addTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" disabled>＋ タスクを追加</button>
+                <button id="editTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" title="選択中のタスクを編集 (Ctrl/Cmd+E)" disabled>タスクを編集</button>
+                <button id="connectModeButton" class="button tw:max-[720px]:px-[9px]" type="button" aria-pressed="false" disabled>接続を作成</button>
             </div>
         </header>
 
-        <main id="viewport" class="viewport">
+        <main id="viewport" class="viewport tw:relative tw:h-[calc(100vh-58px)] tw:w-full tw:touch-none tw:overflow-hidden tw:select-none">
             <div id="canvasWorld" class="canvas-world" hidden>
                 <svg id="connectionLayer" class="connection-layer" aria-label="接続線"></svg>
                 <div id="taskLayer" class="task-layer"></div>
             </div>
-            <section id="emptyState" class="empty-state">
-                <div class="empty-state-icon" aria-hidden="true">◇</div>
-                <h1>キャンバスがありません</h1>
-                <p>キャンバスを作成してみましょう。</p>
-                <button id="emptyCreateCanvasButton" class="button primary" type="button">新規キャンバスを作成</button>
+            <section id="emptyState" class="empty-state tw:absolute tw:top-1/2 tw:left-1/2 tw:z-[6] tw:w-[min(420px,calc(100%-40px))] tw:-translate-x-1/2 tw:-translate-y-1/2 tw:p-8 tw:text-center">
+                <div class="empty-state-icon tw:text-[34px]" aria-hidden="true">◇</div>
+                <h1 class="tw:my-2 tw:text-[20px]">キャンバスがありません</h1>
+                <p class="tw:mt-0 tw:mb-5">キャンバスを作成してみましょう。</p>
+                <button id="emptyCreateCanvasButton" class="button primary tw:max-[720px]:px-[9px]" type="button">新規キャンバスを作成</button>
             </section>
         </main>
 
-        <div id="message" class="message" role="status" hidden></div>
+        <div id="message" class="message tw:fixed tw:right-[18px] tw:bottom-[18px] tw:z-[200] tw:max-w-[min(380px,calc(100vw-36px))] tw:px-3.5 tw:py-2.5" role="status" hidden></div>
 
         <!-- タスク追加・編集ダイアログ -->
-        <dialog id="taskDialog" class="task-dialog">
-            <form id="taskForm" method="dialog">
-                <h2 id="taskDialogTitle">タスクを追加</h2>
+        <dialog id="taskDialog" class="task-dialog tw:w-[min(480px,calc(100vw-32px))] tw:p-0">
+            <form id="taskForm" class="tw:grid tw:gap-3.5 tw:p-[22px]" method="dialog">
+                <h2 id="taskDialogTitle" class="tw:mt-0 tw:mb-0.5 tw:text-[19px]">タスクを追加</h2>
                 <label>
                     タイトル
                     <input id="taskTitleInput" type="text" maxlength="120" autocomplete="off" required>
                 </label>
                 <label>
                     説明
-                    <textarea id="taskDescriptionInput" rows="4"></textarea>
+                    <textarea id="taskDescriptionInput" class="tw:resize-y" rows="4"></textarea>
                 </label>
                 <label>
                     ステータス
@@ -72,10 +72,10 @@
                         <option value="completed">完了</option>
                     </select>
                 </label>
-                <p id="taskFormError" class="form-error" role="alert"></p>
-                <div class="dialog-actions">
-                    <button id="taskCancelButton" class="button" type="button">キャンセル</button>
-                    <button id="taskSubmitButton" class="button primary" type="submit">追加</button>
+                <p id="taskFormError" class="form-error tw:my-[-4px] tw:min-h-[18px] tw:text-xs" role="alert"></p>
+                <div class="tw:flex tw:justify-end tw:gap-2">
+                    <button id="taskCancelButton" class="button tw:max-[720px]:px-[9px]" type="button">キャンセル</button>
+                    <button id="taskSubmitButton" class="button primary tw:max-[720px]:px-[9px]" type="submit">追加</button>
                 </div>
             </form>
         </dialog>

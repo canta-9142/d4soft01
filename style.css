@@ -36,20 +36,9 @@ button:disabled {
 }
 
 .menubar {
-    position: relative;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 58px;
-    padding: 10px 14px;
     border-bottom: 1px solid #e3e2de;
     background: rgb(255 255 255 / 94%);
     box-shadow: 0 1px 4px rgb(47 52 55 / 5%);
-}
-
-.menu-anchor {
-    position: relative;
 }
 
 .icon-button,
@@ -62,11 +51,6 @@ button:disabled {
     border: 1px solid #dadada;
     border-radius: 6px;
     background: #fff;
-}
-
-.icon-button {
-    width: 36px;
-    padding: 0;
 }
 
 .icon-button:hover,
@@ -93,13 +77,9 @@ button:disabled {
 }
 
 .canvas-title-input {
-    width: min(300px, 34vw);
-    height: 34px;
-    padding: 0 10px;
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
-    font-weight: 650;
 }
 
 .canvas-title-input:not(:disabled):hover,
@@ -115,38 +95,19 @@ button:disabled {
 }
 
 .toolbar-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
     color: #6b6f76;
-    font-size: 12px;
 }
 
 .mode-indicator {
-    padding: 4px 8px;
-    border-radius: 999px;
     color: #355489;
     background: #edf3ff;
-    white-space: nowrap;
 }
 
 #dirtyIndicator.is-dirty {
     color: #a15c00;
 }
 
-.toolbar-actions {
-    display: flex;
-    gap: 8px;
-    margin-left: auto;
-}
-
 .canvas-menu {
-    position: absolute;
-    top: 43px;
-    left: 0;
-    width: 250px;
-    padding: 8px;
     border: 1px solid #e3e2de;
     border-radius: 8px;
     background: #fff;
@@ -154,17 +115,7 @@ button:disabled {
 }
 
 .menu-heading {
-    padding: 7px 9px;
     color: #6b6f76;
-    font-size: 12px;
-    font-weight: 650;
-}
-
-.canvas-list {
-    display: grid;
-    gap: 2px;
-    max-height: 260px;
-    overflow: auto;
 }
 
 .canvas-list-item,
@@ -187,7 +138,6 @@ button:disabled {
 }
 
 .menu-action {
-    margin-top: 6px;
     border-top: 1px solid #efefed;
     border-radius: 0 0 5px 5px;
 }
@@ -195,13 +145,7 @@ button:disabled {
 .viewport {
     --grid-x: 0px;
     --grid-y: 0px;
-    position: relative;
-    width: 100%;
-    height: calc(100vh - 58px);
-    overflow: hidden;
     cursor: grab;
-    touch-action: none;
-    user-select: none;
     background-color: #f7f7f5;
     background-image:
         linear-gradient(#dededa 1px, transparent 1px),
@@ -345,41 +289,20 @@ button:disabled {
 }
 
 .empty-state {
-    position: absolute;
-    z-index: 6;
-    top: 50%;
-    left: 50%;
-    width: min(420px, calc(100% - 40px));
-    padding: 32px;
     border: 1px solid #e3e2de;
     border-radius: 12px;
     background: rgb(255 255 255 / 92%);
-    text-align: center;
-    transform: translate(-50%, -50%);
 }
 
 .empty-state-icon {
     color: #2f6feb;
-    font-size: 34px;
-}
-
-.empty-state h1 {
-    margin: 8px 0;
-    font-size: 20px;
 }
 
 .empty-state p {
-    margin: 0 0 20px;
     color: #6b6f76;
 }
 
 .message {
-    position: fixed;
-    z-index: 200;
-    right: 18px;
-    bottom: 18px;
-    max-width: min(380px, calc(100vw - 36px));
-    padding: 10px 14px;
     border: 1px solid #d8e4fb;
     border-radius: 7px;
     color: #294d88;
@@ -394,8 +317,6 @@ button:disabled {
 }
 
 .task-dialog {
-    width: min(480px, calc(100vw - 32px));
-    padding: 0;
     border: 1px solid #e3e2de;
     border-radius: 10px;
     color: #2f3437;
@@ -404,17 +325,6 @@ button:disabled {
 
 .task-dialog::backdrop {
     background: rgb(47 52 55 / 24%);
-}
-
-.task-dialog form {
-    display: grid;
-    gap: 14px;
-    padding: 22px;
-}
-
-.task-dialog h2 {
-    margin: 0 0 2px;
-    font-size: 19px;
 }
 
 .task-dialog label {
@@ -446,39 +356,6 @@ button:disabled {
     box-shadow: 0 0 0 2px rgb(47 111 235 / 14%);
 }
 
-.task-dialog textarea {
-    resize: vertical;
-}
-
 .form-error {
-    min-height: 18px;
-    margin: -4px 0;
     color: #d93025;
-    font-size: 12px;
-}
-
-.dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-@media (max-width: 720px) {
-    .menubar {
-        gap: 6px;
-        padding-inline: 8px;
-    }
-
-    .toolbar-status span:not(.mode-indicator) {
-        display: none;
-    }
-
-    .canvas-title-input {
-        min-width: 0;
-        flex: 1;
-    }
-
-    .button {
-        padding-inline: 9px;
-    }
 }
