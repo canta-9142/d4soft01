@@ -17,6 +17,8 @@ export class Renderer {
     readonly addTaskButton: HTMLButtonElement;
     readonly editTaskButton: HTMLButtonElement;
     readonly connectModeButton: HTMLButtonElement;
+    readonly saveButton: HTMLButtonElement;
+    readonly restoreButton: HTMLButtonElement;
     readonly menuPanel: HTMLElement;
     readonly taskDialog: HTMLDialogElement;
     readonly taskForm: HTMLFormElement;
@@ -38,6 +40,8 @@ export class Renderer {
         this.addTaskButton = this.required("#addTaskButton", HTMLButtonElement);
         this.editTaskButton = this.required("#editTaskButton", HTMLButtonElement);
         this.connectModeButton = this.required("#connectModeButton", HTMLButtonElement);
+        this.saveButton = this.required("#saveButton", HTMLButtonElement);
+        this.restoreButton = this.required("#restoreButton", HTMLButtonElement);
         this.menuPanel = this.required("#canvasMenu", HTMLElement);
         this.taskDialog = this.required("#taskDialog", HTMLDialogElement);
         this.taskForm = this.required("#taskForm", HTMLFormElement);
@@ -63,6 +67,8 @@ export class Renderer {
         this.connectModeButton.disabled = !hasCanvas;
         this.connectModeButton.classList.toggle("is-active", this.app.mode === AppMode.CONNECT);
         this.connectModeButton.setAttribute("aria-pressed", String(this.app.mode === AppMode.CONNECT));
+        this.saveButton.disabled = this.app.mode !== AppMode.NORMAL;
+        this.restoreButton.disabled = this.app.mode !== AppMode.NORMAL;
         this.modeIndicator.textContent = this.modeLabel();
         this.dirtyIndicator.textContent = this.app.isDirty ? "未保存" : "変更なし";
         this.dirtyIndicator.classList.toggle("is-dirty", this.app.isDirty);

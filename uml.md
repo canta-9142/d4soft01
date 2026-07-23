@@ -5,7 +5,7 @@ classDiagram
     class AppState {
         -String version
         -List~Canvas~ canvases
-        -String currentCanvasId
+        -String? currentCanvasId
         -ViewSettings viewSettings
     }
     class ViewSettings {

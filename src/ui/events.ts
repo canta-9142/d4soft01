@@ -36,6 +36,8 @@ export class EventController {
         this.renderer.addTaskButton.addEventListener("click", () => this.openNewTaskAtViewportCenter()); // 新規タスク作成ボタン
         this.renderer.editTaskButton.addEventListener("click", this.openSelectedTaskEditor); // 選択中タスクの編集ボタン
         this.renderer.connectModeButton.addEventListener("click", this.toggleConnectMode); // 接続モード切替ボタン
+        this.renderer.saveButton.addEventListener("click", this.saveApp); // 保存ボタン
+        this.renderer.restoreButton.addEventListener("click", this.restoreApp); // 復元ボタン
         this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle); // キャンバスタイトルの変更
         document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas); // キャンバスリストからキャンバスを選択して切替
         
@@ -89,9 +91,38 @@ export class EventController {
         if (!(target instanceof Element)) return;
         const button = target.closest<HTMLElement>("[data-canvas-id]");
         const canvasId = button?.dataset.canvasId;
-        if (!canvasId || !this.app.changeCanvas(canvasId)) return;
+        if (!canvasId) return;
+        if (!this.app.changeCanvas(canvasId)) {
+            this.renderer.showMessage("保存に失敗したため、キャンバスを切り替えられませんでした", "error");
+            return;
+        }
         this.renderer.toggleMenu(false);
         this.renderer.render();
+    }
+
+    private saveApp = (): void => {
+        if (!this.app.save()) {
+            this.renderer.showMessage("保存に失敗しました", "error");
+            return;
+        }
+        this.renderer.render();
+        this.renderer.showMessage("保存しました");
+    }
+
+    private restoreApp = (): void => {
+        if (this.app.isDirty
+            && !window.confirm("未保存の変更を破棄して、保存データを復元しますか？")) {
+            return;
+        }
+
+        const result = this.app.restore();
+        this.renderer.toggleMenu(false);
+        this.renderer.render();
+        if (result.success) {
+            this.renderer.showMessage("保存データを復元しました");
+            return;
+        }
+        this.renderer.showMessage(result.errorMessage ?? "保存データがありません", "error");
     }
 
     private updateCanvasTitle = (): void => {
@@ -336,7 +367,6 @@ export class EventController {
             }
             return;
         }
-        if (isEditingText) return;
 
         const modifier = event.ctrlKey || event.metaKey;
         if (modifier && event.key.toLowerCase() === "z") {
