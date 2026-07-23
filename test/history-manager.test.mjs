@@ -20,6 +20,39 @@ const createTask = (app, title, x = 10, y = 20) => {
     return id;
 };
 
+test("a canvas uses the specified default title", () => {
+    const app = new Application();
+    app.createCanvas();
+    assert.equal(app.getCurrentCanvas()?.title, "新規キャンバス");
+
+    app.createCanvas("   ");
+    assert.equal(app.getCurrentCanvas()?.title, "新規キャンバス");
+});
+
+test("generated IDs include an explicit timestamp and random component", () => {
+    const app = new Application();
+    app.createCanvas();
+    const canvasId = app.state.currentCanvasId;
+    const taskId = app.createTaskAt("task", "", TaskStatus.NOTSTARTED, 0, 0);
+    assert.ok(canvasId);
+    assert.ok(taskId);
+    assert.match(canvasId, /^canvas-\d{17}-[a-z0-9]{12}$/i);
+    assert.match(taskId, /^task-\d{17}-[a-z0-9]{12}$/i);
+    assert.equal(typeof app.getCurrentCanvas().createdAt, "string");
+    assert.equal(typeof app.getTask(taskId).createdAt, "string");
+});
+
+test("connections can only be created between currently visible tasks", () => {
+    const app = new Application();
+    createCanvas(app, "canvas");
+    const visibleId = createTask(app, "visible");
+    const hiddenId = createTask(app, "hidden");
+    assert.equal(app.updateSearchText("visible"), true);
+
+    assert.equal(app.createConnection(visibleId, hiddenId), false);
+    assert.equal(app.getCurrentCanvas().connections.length, 0);
+});
+
 test("task creation can be undone and redone with a real Task instance", () => {
     const app = new Application();
     createCanvas(app, "canvas");
@@ -140,7 +173,7 @@ test("canvas deletion restores the canvas and its context", () => {
     const firstCanvasId = createCanvas(app, "first");
     const secondCanvasId = createCanvas(app, "second");
     const taskId = createTask(app, "task");
-    app.state.viewSettings.searchText = "query";
+    app.state.viewSettings.searchText = "task";
     app.currentTaskId = taskId;
     app.historyManager.clear();
 
@@ -149,7 +182,7 @@ test("canvas deletion restores the canvas and its context", () => {
 
     assert.equal(app.undo(), true);
     assert.equal(app.state.currentCanvasId, secondCanvasId);
-    assert.equal(app.state.viewSettings.searchText, "query");
+    assert.equal(app.state.viewSettings.searchText, "task");
     assert.equal(app.currentTaskId, taskId);
     assert.ok(app.getTask(taskId) instanceof Task);
 
@@ -189,6 +222,35 @@ test("pasting a task is undoable and keeps the generated identity on redo", () =
     assert.equal(app.getTask(pastedId), undefined);
     assert.equal(app.redo(), true);
     assert.equal(app.getTask(pastedId)?.id, pastedId);
+});
+
+test("clipboard keeps a copy-time snapshot and uses the fallback position on another canvas", () => {
+    const app = new Application();
+    createCanvas(app, "source");
+    const sourceId = createTask(app, "source task", 8, 12);
+    assert.equal(app.copyTaskToClipboard(sourceId), true);
+    assert.equal(
+        app.updateTask(sourceId, "changed after copy", "", TaskStatus.NOTSTARTED),
+        true,
+    );
+
+    createCanvas(app, "destination");
+    app.historyManager.clear();
+    assert.equal(app.pasteTask({ x: 100, y: 200 }), true);
+    const pastedId = app.currentTaskId;
+    assert.ok(pastedId);
+    assert.deepEqual(
+        {
+            title: app.getTask(pastedId)?.title,
+            x: app.getTask(pastedId)?.x,
+            y: app.getTask(pastedId)?.y,
+        },
+        { title: "source task", x: 100, y: 200 },
+    );
+    assert.equal(app.undo(), true);
+    assert.equal(app.getTask(pastedId), undefined);
+    assert.equal(app.redo(), true);
+    assert.equal(app.getTask(pastedId)?.title, "source task");
 });
 
 test("a failed history application does not move the entry to redo", () => {
@@ -233,4 +295,55 @@ test("only the latest fifty operations are retained", () => {
     assert.equal(app.undo(), false);
     assert.equal(app.getCurrentCanvas().tasks.length, 1);
     assert.equal(app.getCurrentCanvas().tasks[0].title, "task-0");
+});
+
+test("no-op updates preserve timestamps and do not create history entries", () => {
+    const app = new Application();
+    const canvasId = createCanvas(app, "canvas");
+    const taskId = createTask(app, "task", 10, 20);
+    const canvas = app.getCurrentCanvas();
+    const task = app.getTask(taskId);
+    const canvasUpdatedAt = canvas.updatedAt;
+    const taskUpdatedAt = task.updatedAt;
+    app.historyManager.clear();
+
+    assert.equal(app.updateCanvasTitle(canvasId, "canvas"), true);
+    assert.equal(app.updateCanvasPosition(canvasId, 0, 0), true);
+    assert.equal(
+        app.updateTask(taskId, "task", "description", TaskStatus.NOTSTARTED),
+        true,
+    );
+    assert.equal(app.updateTaskPosition(taskId, 10, 20), true);
+
+    assert.equal(canvas.updatedAt, canvasUpdatedAt);
+    assert.equal(task.updatedAt, taskUpdatedAt);
+    assert.equal(app.historyManager.canUndo(), false);
+});
+
+test("mutating another canvas preserves the current canvas selection", () => {
+    const app = new Application();
+    const firstCanvasId = createCanvas(app, "first");
+    const firstTaskId = createTask(app, "first task");
+    createCanvas(app, "second");
+    const secondTaskId = createTask(app, "second task");
+    app.currentTaskId = secondTaskId;
+    app.historyManager.clear();
+
+    assert.equal(app.removeTask(firstTaskId), true);
+    assert.equal(app.currentTaskId, secondTaskId);
+    assert.equal(app.removeCanvas(firstCanvasId), true);
+    assert.equal(app.currentTaskId, secondTaskId);
+    assert.equal(app.getTask(secondTaskId)?.title, "second task");
+});
+
+test("runtime-invalid task and clipboard values are rejected", () => {
+    const app = new Application();
+    createCanvas(app, "canvas");
+    assert.equal(app.createTaskAt("invalid", "", "unknown", 0, 0), null);
+
+    const taskId = createTask(app, "source");
+    assert.equal(app.copyTaskToClipboard(taskId), true);
+    app.clipboardState.x = Number.POSITIVE_INFINITY;
+    assert.equal(app.clipboardState.hasTask, false);
+    assert.equal(app.pasteTask(), false);
 });

@@ -92,12 +92,10 @@ classDiagram
         +createCanvas(void): void
         +removeCanvas(String canvasId): boolean
         +updateCanvasTitle(String canvasId, String title): boolean
-        +updateCanvasPosisiton(String canvasId, int x, int y): boolean
+        +updateCanvasPosition(String canvasId, int x, int y): boolean
         +changeCanvas(String canvasId): boolean
-        +createTask(void): boolean
-        +updateTaskTitle(String taskId, String title): boolean
-        +updateTaskDescription(String taskId, String description): boolean
-        +updateTaskStatus(String taskId, TaskStatus status): boolean
+        +createTaskAt(String title, String description, TaskStatus status, int x, int y): String
+        +updateTask(String taskId, String title, String description, TaskStatus status): boolean
         +updateTaskPosition(String taskId, int x, int y): boolean
         +removeTask(String taskId): boolean
         +createConnection(void): boolean

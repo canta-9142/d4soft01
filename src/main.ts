@@ -4,13 +4,13 @@ import { Renderer } from "./ui/renderer.js";
 
 (() => {
     const app = new Application();
-    const restoreResult = app.restore();
+    const startupRestore = app.restore();
     const renderer = new Renderer(app);
     const events = new EventController(app, renderer);
 
     events.bind();
     renderer.render();
-    if (restoreResult.errorMessage) {
-        renderer.showMessage(restoreResult.errorMessage, "error");
+    if (!startupRestore.success && startupRestore.errorMessage) {
+        renderer.showMessage(`復元に失敗しました: ${startupRestore.errorMessage}`, "error");
     }
 })();

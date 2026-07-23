@@ -1,7 +1,6 @@
-import { TaskStatus } from "../domain/enums.js";
-import { Task } from "../domain/task.js";
-import { Connection } from "../domain/connection.js";
-import { findTaskById } from "../domain/entity-finders.js";
+import type { Connection } from "../domain/connection.js";
+import type { TaskStatus } from "../domain/enums.js";
+import type { Task } from "../domain/task.js";
 
 export type FilterSource = {
     readonly tasks: readonly Task[];
@@ -29,6 +28,7 @@ export class FilterService {
         source: FilterSource,
         criteria: FilterCriteria
     ): FilterResult {
+        const keyword = criteria.keyword?.trim().toLowerCase() ?? "";
         const depthTaskIds = criteria.depth === null
             ? null
             : FilterService.collectTaskIdsWithinDepth(
@@ -39,9 +39,11 @@ export class FilterService {
             );
 
         const filteredTasks = source.tasks.filter((task) =>
-            FilterService.matchesKeyword(task, criteria.keyword) &&
-            FilterService.matchesStatus(task, criteria.status) &&
-            FilterService.matchesDepth(task, depthTaskIds)
+            (keyword === ""
+                || task.title.toLowerCase().includes(keyword)
+                || task.description.toLowerCase().includes(keyword))
+            && (criteria.status === null || task.status === criteria.status)
+            && (depthTaskIds === null || depthTaskIds.has(task.id))
         );
 
         const filteredTaskIds = new Set(filteredTasks.map((task) => task.id));
@@ -56,81 +58,44 @@ export class FilterService {
         };
     }
 
-    private static matchesKeyword(task: Task, keyword: string | null): boolean {
-        if (keyword === null) {
-            return true;
-        }
-
-        const trimmed = keyword.trim();
-        if (trimmed === "") {
-            return true;
-        }
-
-        const normalized = trimmed.toLowerCase();
-        return (
-            task.title.toLowerCase().includes(normalized) ||
-            task.description.toLowerCase().includes(normalized)
-        );
-    }
-
-    private static matchesStatus(task: Task, status: TaskStatus | null): boolean {
-        if (status === null) {
-            return true;
-        }
-        return task.status === status;
-    }
-
-    private static matchesDepth(task: Task, depthTaskIds: ReadonlySet<string> | null): boolean {
-        if (depthTaskIds === null) {
-            return true;
-        }
-        return depthTaskIds.has(task.id);
-    }
-
     private static collectTaskIdsWithinDepth(
         tasks: readonly Task[],
         connections: readonly Connection[],
         baseTaskId: string,
         maxDepth: number
     ): ReadonlySet<string> {
-        const baseTask = findTaskById(tasks, baseTaskId);
+        const taskIds = new Set(tasks.map(task => task.id));
         const visited = new Set<string>();
+        if (!taskIds.has(baseTaskId)) return visited;
 
-        if (!baseTask) {
-            return visited;
+        const neighborsByTaskId = new Map<string, string[]>();
+        const addNeighbor = (taskId: string, neighborId: string): void => {
+            const neighbors = neighborsByTaskId.get(taskId);
+            if (neighbors) neighbors.push(neighborId);
+            else neighborsByTaskId.set(taskId, [neighborId]);
+        };
+        for (const connection of connections) {
+            if (!taskIds.has(connection.parentTaskId) || !taskIds.has(connection.childTaskId)) {
+                continue;
+            }
+            addNeighbor(connection.parentTaskId, connection.childTaskId);
+            addNeighbor(connection.childTaskId, connection.parentTaskId);
         }
 
-        visited.add(baseTask.id);
-
-        let frontier: readonly string[] = [baseTask.id];
+        visited.add(baseTaskId);
+        let frontier: readonly string[] = [baseTaskId];
         for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
             const nextFrontier: string[] = [];
             for (const taskId of frontier) {
-                for (const connection of connections) {
-                    const neighborId = FilterService.neighborTaskId(connection, taskId);
-                    if (
-                        neighborId !== null &&
-                        !visited.has(neighborId) &&
-                        findTaskById(tasks, neighborId)
-                    ) {
-                        visited.add(neighborId);
-                        nextFrontier.push(neighborId);
-                    }
+                for (const neighborId of neighborsByTaskId.get(taskId) ?? []) {
+                    if (visited.has(neighborId)) continue;
+                    visited.add(neighborId);
+                    nextFrontier.push(neighborId);
                 }
             }
             frontier = nextFrontier;
         }
 
         return visited;
-    }
-
-    private static neighborTaskId(connection: Connection, taskId: string): string | null {
-        if (connection.parentTaskId === taskId) {
-            return connection.childTaskId;
-        }
-        if (connection.childTaskId === taskId) {
-            return connection.parentTaskId;
-        }
-        return null;
     }
 }

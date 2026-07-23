@@ -7,8 +7,8 @@ export class Task {
     status: TaskStatus;
     x: number;
     y: number;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
 
     constructor(id: string, title: string = "", description: string = "", status: TaskStatus = TaskStatus.NOTSTARTED, x: number = 0, y: number = 0) {
         this.id = id;
@@ -17,39 +17,31 @@ export class Task {
         this.status = status;
         this.x = x;
         this.y = y;
-        this.createdAt = new Date();
-        this.updatedAt = new Date();
+        const now = new Date().toISOString();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
-    public updateTitle = (title: string): void => {
-        this.title = title;
-        this.updateTimestamp(new Date());
-    }
-
-    public updateDescription = (description: string): void => {
-        this.description = description;
-        this.updateTimestamp(new Date());
-    }
-
-    public updateStatus = (status: TaskStatus): void => {
-        this.status = status;
-        this.updateTimestamp(new Date());
-    }
-
-    public updateDetails = (title: string, description: string, status: TaskStatus): void => {
+    public updateDetails = (title: string, description: string, status: TaskStatus): boolean => {
+        if (this.title === title && this.description === description && this.status === status) {
+            return false;
+        }
         this.title = title;
         this.description = description;
         this.status = status;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    public updatePosition = (x: number, y: number): void => {
+    public updatePosition = (x: number, y: number): boolean => {
+        if (this.x === x && this.y === y) return false;
         this.x = x;
         this.y = y;
-        this.updateTimestamp(new Date());
+        this.updateTimestamp();
+        return true;
     }
 
-    private updateTimestamp = (updatedAt: Date): void => {
-        this.updatedAt = updatedAt;
+    private updateTimestamp = (): void => {
+        this.updatedAt = new Date().toISOString();
     }
 }

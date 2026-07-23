@@ -1,10 +1,11 @@
-import { Canvas } from "./canvas.js";
-import { Task } from "./task.js";
+import type { Canvas } from "./canvas.js";
+import type { Task } from "./task.js";
 
 export const findCanvasById = (
     canvases: readonly Canvas[],
     canvasId: string | null,
 ): Canvas | undefined => {
+    if (canvasId === null) return undefined;
     return canvases.find(canvas => canvas.id === canvasId);
 };
 

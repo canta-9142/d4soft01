@@ -6,6 +6,7 @@
         "dev:ts": "tsc --watch",
         "build:ts": "tsc",
         "dev": "concurrently \"npm run dev:css\" \"npm run dev:ts\"",
+        "serve": "python3 -m http.server 8000",
         "build": "npm run build:css && npm run build:ts",
         "test": "npm run build:ts && node --test --test-isolation=none test/*.test.mjs"
     },

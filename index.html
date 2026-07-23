@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="jp">
+<html lang="ja">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,36 +8,96 @@
         <link rel="stylesheet" href="./dist/tailwind.css">
     </head>
     <body>
-        <header class="menubar tw:relative tw:z-[100] tw:flex tw:h-[58px] tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-2.5 tw:max-[720px]:gap-1.5 tw:max-[720px]:px-2">
-            <div class="tw:relative">
-                <button id="hamburger" class="icon-button tw:w-9 tw:px-0" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
-                    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                        <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
-                    </svg>
-                </button>
-                <aside id="canvasMenu" class="canvas-menu tw:absolute tw:top-[43px] tw:left-0 tw:w-[250px] tw:p-2" hidden>
-                    <div class="menu-heading tw:px-[9px] tw:py-[7px] tw:text-xs tw:font-[650]">キャンバス</div>
-                    <div id="canvasList" class="canvas-list tw:grid tw:max-h-[260px] tw:gap-0.5 tw:overflow-auto"></div>
-                    <button id="newCanvasButton" class="menu-action tw:mt-1.5" type="button">＋ 新規キャンバス</button>
-                </aside>
+        <header class="menubar tw:relative tw:z-[100] tw:flex tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-2.5 tw:max-[720px]:gap-1.5 tw:max-[720px]:px-2">
+            <div class="menubar-main">
+                <div class="tw:relative">
+                    <button id="hamburger" class="icon-button tw:w-9 tw:px-0" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
+                        <span style="font-size: 20px;">≡</span>
+                    </button>
+                    <aside id="canvasMenu" class="canvas-menu tw:absolute tw:top-[43px] tw:left-0 tw:w-[250px] tw:p-2" hidden>
+                        <div class="menu-heading tw:px-[9px] tw:py-[7px] tw:text-xs tw:font-[650]">キャンバス</div>
+                        <div id="canvasList" class="canvas-list tw:grid tw:max-h-[260px] tw:gap-0.5 tw:overflow-auto"></div>
+                        <button id="newCanvasButton" class="menu-action tw:mt-1.5" type="button">＋ 新規キャンバス</button>
+                        <button id="restoreButton" class="menu-action" type="button">保存状態へ復元</button>
+                        <button id="deleteCanvasButton" class="menu-action danger" type="button" disabled>現在のキャンバスを削除</button>
+                    </aside>
+                </div>
+
+                <input id="canvasTitleInput" class="canvas-title-input tw:h-[34px] tw:w-[min(240px,26vw)] tw:px-2.5 tw:font-[650] tw:max-[720px]:min-w-0 tw:max-[720px]:flex-1" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
+
+                <div class="toolbar-status tw:flex tw:min-w-0 tw:items-center tw:gap-3 tw:text-xs" aria-live="polite">
+                    <span id="modeIndicator" class="mode-indicator tw:rounded-full tw:px-2 tw:py-1 tw:whitespace-nowrap">通常モード</span>
+                    <span id="viewStateIndicator" class="view-state-indicator">検索なし / 深さ: 無効</span>
+                    <span id="taskCount" class="tw:max-[720px]:hidden">タスク 0</span>
+                    <span id="dirtyIndicator" class="tw:max-[720px]:hidden">変更なし</span>
+                    <span id="message" class="menubar-message" role="status" hidden>
+                        <span id="messageText"></span>
+                        <button id="messageCloseButton" type="button" aria-label="通知を閉じる">×</button>
+                    </span>
+                </div>
             </div>
 
-            <input id="canvasTitleInput" class="canvas-title-input tw:h-[34px] tw:w-[min(300px,34vw)] tw:px-2.5 tw:font-[650] tw:max-[720px]:min-w-0 tw:max-[720px]:flex-1" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
+            <div class="toolbar-actions tw:ml-auto tw:flex tw:gap-2">
+                <div class="tw:relative">
+                    <button id="filterButton" class="button tw:max-[720px]:px-[9px]" type="button" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false" title="検索・絞り込み (Ctrl/Cmd+F)" disabled>
+                        検索・絞り込み
+                    </button>
+                    <aside id="filterPanel" class="filter-panel tw:absolute tw:top-[43px] tw:right-0 tw:grid tw:w-[min(360px,calc(100vw-24px))] tw:gap-4 tw:p-4" role="dialog" aria-label="検索・絞り込み" hidden>
+                        <div>
+                            <h2 class="filter-title tw:m-0 tw:text-base">検索・絞り込み</h2>
+                            <p class="filter-help tw:mt-1 tw:mb-0 tw:text-xs">入力した条件はすぐにキャンバスへ反映されます。</p>
+                        </div>
 
-            <div class="toolbar-status tw:flex tw:min-w-0 tw:items-center tw:gap-3 tw:text-xs" aria-live="polite">
-                <span id="modeIndicator" class="mode-indicator tw:rounded-full tw:px-2 tw:py-1 tw:whitespace-nowrap">通常モード</span>
-                <span id="taskCount" class="tw:max-[720px]:hidden">タスク 0</span>
-                <span id="dirtyIndicator" class="tw:max-[720px]:hidden">変更なし</span>
-            </div>
+                        <label class="filter-field">
+                            キーワード
+                            <input id="searchInput" type="search" autocomplete="off" placeholder="タイトルまたは説明を検索">
+                        </label>
 
-            <div class="tw:ml-auto tw:flex tw:gap-2">
+                        <label class="filter-field">
+                            ステータス
+                            <select id="statusFilterSelect">
+                                <option value="">絞り込みなし</option>
+                                <option value="not_started">未着手</option>
+                                <option value="in_progress">進行中</option>
+                                <option value="completed">完了済み</option>
+                            </select>
+                        </label>
+
+                        <section class="depth-filter tw:grid tw:gap-3 tw:p-3" aria-labelledby="depthFilterTitle">
+                            <div class="tw:flex tw:items-center tw:justify-between tw:gap-3">
+                                <h3 id="depthFilterTitle" class="tw:m-0 tw:text-sm">深さフィルター</h3>
+                                <label class="filter-switch tw:flex tw:items-center tw:gap-2">
+                                    <input id="depthFilterCheckbox" type="checkbox">
+                                    有効
+                                </label>
+                            </div>
+                            <div class="depth-base-row tw:flex tw:items-center tw:justify-between tw:gap-3">
+                                <span>
+                                    <span class="filter-caption tw:block tw:text-[11px]">基準タスク</span>
+                                    <strong id="depthBaseTaskLabel" class="tw:block tw:max-w-[190px] tw:overflow-hidden tw:text-ellipsis tw:whitespace-nowrap">未設定</strong>
+                                </span>
+                                <button id="setDepthBaseButton" class="button compact" type="button" disabled>選択中を基準に設定</button>
+                            </div>
+                            <label class="filter-field">
+                                最大深さ
+                                <input id="maxDepthInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                            </label>
+                        </section>
+
+                        <p id="filterError" class="filter-error tw:m-0 tw:min-h-[18px] tw:text-xs" role="alert"></p>
+                        <div class="tw:flex tw:justify-end">
+                            <button id="clearSearchButton" class="button compact" type="button">キーワードをクリア</button>
+                        </div>
+                    </aside>
+                </div>
                 <button id="addTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" disabled>＋ タスクを追加</button>
                 <button id="editTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" title="選択中のタスクを編集 (Ctrl/Cmd+E)" disabled>タスクを編集</button>
                 <button id="connectModeButton" class="button tw:max-[720px]:px-[9px]" type="button" aria-pressed="false" disabled>接続を作成</button>
+                <button id="saveButton" class="button primary tw:max-[720px]:px-[9px]" type="button">保存</button>
             </div>
         </header>
 
-        <main id="viewport" class="viewport tw:relative tw:h-[calc(100vh-58px)] tw:w-full tw:touch-none tw:overflow-hidden tw:select-none">
+        <main id="viewport" class="viewport tw:relative tw:w-full tw:touch-none tw:overflow-hidden tw:select-none">
             <div id="canvasWorld" class="canvas-world" hidden>
                 <svg id="connectionLayer" class="connection-layer" aria-label="接続線"></svg>
                 <div id="taskLayer" class="task-layer"></div>
@@ -48,9 +108,87 @@
                 <p class="tw:mt-0 tw:mb-5">キャンバスを作成してみましょう。</p>
                 <button id="emptyCreateCanvasButton" class="button primary tw:max-[720px]:px-[9px]" type="button">新規キャンバスを作成</button>
             </section>
+            <button
+                id="operationGuideButton"
+                class="operation-guide-button canvas-overlay-control"
+                type="button"
+                aria-haspopup="dialog"
+                aria-controls="operationGuideDialog"
+                aria-expanded="false"
+                title="操作一覧を表示 (Ctrl/Cmd+G)"
+            >
+                <span class="operation-guide-icon" aria-hidden="true">?</span>
+                <span>操作一覧</span>
+            </button>
         </main>
 
-        <div id="message" class="message tw:fixed tw:right-[18px] tw:bottom-[18px] tw:z-[200] tw:max-w-[min(380px,calc(100vw-36px))] tw:px-3.5 tw:py-2.5" role="status" hidden></div>
+        <aside id="contextMenu" class="context-menu" role="menu" hidden></aside>
+
+        <!-- 操作一覧ダイアログ -->
+        <dialog id="operationGuideDialog" class="operation-guide-dialog" aria-labelledby="operationGuideTitle">
+            <div class="operation-guide-shell">
+                <header class="operation-guide-header">
+                    <div class="tw:pt-3">
+                        <p class="operation-guide-eyebrow">QUICK GUIDE</p>
+                        <h2 id="operationGuideTitle">操作一覧</h2>
+                        <p class="tw:pt-2">キャンバス上の基本操作とキーボードショートカットです。</p>
+                    </div>
+                    <button id="operationGuideCloseButton" class="operation-guide-close" type="button" aria-label="操作一覧を閉じる">×</button>
+                </header>
+
+                <div class="operation-guide-content">
+                    <section class="operation-guide-section">
+                        <h3>マウス操作</h3>
+                        <dl class="operation-list">
+                            <div><dt>空白をダブルクリック</dt><dd>タスクを追加</dd></div>
+                            <div><dt>タスクをダブルクリック</dt><dd>タスクを編集</dd></div>
+                            <div><dt>タスクを右クリック</dt><dd>編集・コピー・削除メニュー</dd></div>
+                            <div><dt>空白を右クリック</dt><dd>キャンバスメニュー</dd></div>
+                            <div><dt>タスクにマウスを重ねる</dt><dd>説明をプレビュー</dd></div>
+                            <div><dt>タスクをドラッグ</dt><dd>タスクを移動</dd></div>
+                            <div><dt>空白をドラッグ</dt><dd>キャンバスを移動</dd></div>
+                            <div><dt>タスク / 接続線をクリック</dt><dd>操作対象を選択</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>タスク</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>A</kbd></dt><dd>タスクを追加</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>E</kbd></dt><dd>選択タスクを編集</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>C</kbd> / <kbd>V</kbd></dt><dd>選択タスクをコピー / 貼り付け</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>D</kbd> / <kbd>Delete</kbd></dt><dd>選択対象を削除</dd></div>
+                            <div><dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>前後のタスクを選択</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>キャンバスと表示</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>X</kbd></dt><dd>接続モードを切り替え</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>F</kbd></dt><dd>検索・絞り込みを表示</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>F</kbd></dt><dd>検索キーワードをクリア</dd></div>
+                            <div><dt><kbd>Shift</kbd><span>+</span><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>キャンバスを切り替え</dd></div>
+                        </dl>
+                    </section>
+
+                    <section class="operation-guide-section">
+                        <h3>履歴と共通操作</h3>
+                        <dl class="operation-list">
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>S</kbd></dt><dd>現在の状態を保存</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>Z</kbd> / <kbd>Y</kbd></dt><dd>元に戻す / やり直す</dd></div>
+                            <div><dt><kbd>Esc</kbd></dt><dd>メニューや現在の操作を終了</dd></div>
+                            <div><dt><kbd>Ctrl / ⌘</kbd><span>+</span><kbd>G</kbd></dt><dd>この操作一覧を開く / 閉じる</dd></div>
+                        </dl>
+                    </section>
+                </div>
+
+                <footer class="operation-guide-footer">
+                    <span><kbd>Esc</kbd> でも閉じられます</span>
+                    <button id="operationGuideDoneButton" class="button primary" type="button">閉じる</button>
+                </footer>
+            </div>
+        </dialog>
 
         <!-- タスク追加・編集ダイアログ -->
         <dialog id="taskDialog" class="task-dialog tw:w-[min(480px,calc(100vw-32px))] tw:p-0">

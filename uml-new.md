@@ -1,0 +1,180 @@
+# 現在のクラス構造（概略）
+
+現在の実装を、UI・アプリケーション・ドメイン・サービス／履歴の主要クラスに絞って示す。
+型エイリアス、スナップショット、バリデーション関数、DOM要素などの詳細は省略している。
+
+```mermaid
+classDiagram
+    direction LR
+
+    class EventController {
+        -Application app
+        -Renderer renderer
+        +bind() void
+    }
+
+    class Renderer {
+        -Application app
+        +render() void
+        +renderConnections() void
+    }
+
+    class Application {
+        +AppMode mode
+        +AppState state
+        +String currentTaskId
+        +String currentConnectionId
+        +ClipboardState clipboardState
+        +HistoryManager historyManager
+        +boolean isDirty
+        +createCanvas(title) void
+        +createTaskAt(...) String
+        +createConnection(parentTaskId, childTaskId) boolean
+        +removeTask(taskId) boolean
+        +undo() boolean
+        +redo() boolean
+        +save() boolean
+        +restore() RestoreResult
+    }
+
+    class AppState {
+        +String version
+        +Canvas[] canvases
+        +String currentCanvasId
+        +ViewSettings viewSettings
+    }
+
+    class ClipboardState {
+        +String sourceTaskId
+        +String sourceCanvasId
+        +TaskStatus status
+        +boolean hasTask
+        +clear() void
+    }
+
+    class Canvas {
+        +String id
+        +String title
+        +Task[] tasks
+        +Connection[] connections
+        +number x
+        +number y
+        +updateTitle(title) boolean
+        +updatePosition(x, y) boolean
+    }
+
+    class Task {
+        +String id
+        +String title
+        +String description
+        +TaskStatus status
+        +number x
+        +number y
+        +updateDetails(...) boolean
+        +updatePosition(x, y) boolean
+    }
+
+    class Connection {
+        +String id
+        +String parentTaskId
+        +String childTaskId
+        +String createdAt
+    }
+
+    class ViewSettings {
+        +String searchText
+        +TaskStatus statusFilter
+        +boolean depthFilterEnabled
+        +String depthBaseTaskId
+        +number maxDepth
+        +resetDepth() void
+        +reset() void
+    }
+
+    class FilterService {
+        <<static>>
+        +apply(source, criteria) FilterResult
+    }
+
+    class LocalStorageService {
+        <<static>>
+        +save(state) boolean
+        +load() RestoreResult
+    }
+
+    class HistoryManager {
+        -HistoryEntry[] undoStack
+        -HistoryEntry[] redoStack
+        +record(change) void
+        +undo(target) boolean
+        +redo(target) boolean
+        +clear() void
+    }
+
+    class HistoryEntry {
+        +HistoryChange change
+        +String createdAt
+    }
+
+    class AppMode {
+        <<enumeration>>
+        NORMAL
+        EDIT
+        CONNECT
+    }
+
+    class TaskStatus {
+        <<enumeration>>
+        NOTSTARTED
+        INPROGRESS
+        COMPLETED
+    }
+
+    class HistoryOperationType {
+        <<enumeration>>
+        TaskCreate
+        TaskEdit
+        TaskMove
+        TaskDelete
+        ConnectionCreate
+        ConnectionDelete
+        TaskPaste
+        CanvasDelete
+    }
+
+    EventController --> Application : 操作を委譲
+    EventController --> Renderer : 再描画を指示
+    Renderer --> Application : 状態を参照
+
+    Application *-- AppState : 所有
+    Application *-- ClipboardState : 所有
+    Application *-- HistoryManager : 所有
+    Application --> AppMode : 現在モード
+    Application ..> FilterService : 絞り込み
+    Application ..> LocalStorageService : 保存・復元
+
+    AppState "1" *-- "0..*" Canvas : 保持
+    AppState "1" *-- "1" ViewSettings : 保持
+    Canvas "1" *-- "0..*" Task : 保持
+    Canvas "1" *-- "0..*" Connection : 保持
+    Connection "0..*" --> "1" Task : parentTaskId
+    Connection "0..*" --> "1" Task : childTaskId
+
+    Task --> TaskStatus : 状態
+    ViewSettings --> TaskStatus : 状態フィルター
+    ClipboardState --> TaskStatus : コピーした状態
+
+    HistoryManager "1" *-- "0..50" HistoryEntry : undo／redo
+    HistoryEntry --> HistoryOperationType : 操作種別
+    FilterService ..> Task : 対象
+    FilterService ..> Connection : 対象
+    LocalStorageService ..> AppState : 永続化
+```
+
+## レイヤーごとの役割
+
+- `EventController` / `Renderer`: DOMイベントの受付と画面描画
+- `Application`: ユースケースの実行、選択状態、編集モード、保存状態の統括
+- `AppState` / `Canvas` / `Task` / `Connection`: アプリケーションの中心データ
+- `FilterService` / `LocalStorageService`: 絞り込みとブラウザストレージへの永続化
+- `HistoryManager`: スナップショットを利用した undo / redo
