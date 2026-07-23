@@ -81,14 +81,18 @@ test("save and restore round-trip rehydrates domain objects and clears transient
         assert.equal(app.redo(), true);
         assert.equal(app.isDirty, false);
 
-        assert.equal(app.updateTaskTitle(rootId, "changed"), true);
+        assert.equal(
+            app.updateTask(rootId, "changed", "description", TaskStatus.COMPLETED),
+            true,
+        );
         assert.equal(app.copyTaskToClipboard(rootId), true);
         assert.equal(app.historyManager.canUndo(), true);
         assert.equal(app.restore().success, true);
 
         const restoredTask = app.getTask(rootId);
         assert.ok(restoredTask instanceof Task);
-        assert.ok(restoredTask.createdAt instanceof Date);
+        assert.equal(typeof restoredTask.createdAt, "string");
+        assert.equal(new Date(restoredTask.createdAt).toISOString(), restoredTask.createdAt);
         assert.equal(restoredTask.title, "root");
         assert.equal(app.getVisibleItems().tasks.length, 1);
         assert.equal(app.historyManager.canUndo(), false);

@@ -112,7 +112,7 @@ test("redo clears selections made invisible by the restored task state", () => {
 
     assert.equal(app.updateSearchText("alpha"), true);
     app.currentTaskId = taskId;
-    assert.equal(app.updateTaskTitle(taskId, "beta"), true);
+    assert.equal(app.updateTask(taskId, "beta", "", TaskStatus.NOTSTARTED), true);
     assert.equal(app.currentTaskId, null);
 
     assert.equal(app.undo(), true);

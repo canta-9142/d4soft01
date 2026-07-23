@@ -39,15 +39,15 @@ export const createTaskSnapshot = (task: Task): TaskSnapshot => ({
     status: task.status,
     x: task.x,
     y: task.y,
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
 });
 
 export const createConnectionSnapshot = (connection: Connection): ConnectionSnapshot => ({
     id: connection.id,
     parentTaskId: connection.parentTaskId,
     childTaskId: connection.childTaskId,
-    createdAt: connection.createdAt.toISOString(),
+    createdAt: connection.createdAt,
 });
 
 export const createCanvasSnapshot = (canvas: Canvas): CanvasSnapshot => ({
@@ -57,8 +57,8 @@ export const createCanvasSnapshot = (canvas: Canvas): CanvasSnapshot => ({
     connections: canvas.connections.map(createConnectionSnapshot),
     x: canvas.x,
     y: canvas.y,
-    createdAt: canvas.createdAt.toISOString(),
-    updatedAt: canvas.updatedAt.toISOString(),
+    createdAt: canvas.createdAt,
+    updatedAt: canvas.updatedAt,
 });
 
 export const applyTaskSnapshot = (task: Task, snapshot: TaskSnapshot): Task =>
@@ -69,8 +69,8 @@ export const applyTaskSnapshot = (task: Task, snapshot: TaskSnapshot): Task =>
         status: snapshot.status,
         x: snapshot.x,
         y: snapshot.y,
-        createdAt: new Date(snapshot.createdAt),
-        updatedAt: new Date(snapshot.updatedAt),
+        createdAt: snapshot.createdAt,
+        updatedAt: snapshot.updatedAt,
     });
 
 export const restoreTaskSnapshot = (snapshot: TaskSnapshot): Task =>
@@ -79,13 +79,13 @@ export const restoreTaskSnapshot = (snapshot: TaskSnapshot): Task =>
 export const restoreConnectionSnapshot = (snapshot: ConnectionSnapshot): Connection =>
     Object.assign(
         new Connection(snapshot.id, snapshot.parentTaskId, snapshot.childTaskId),
-        { createdAt: new Date(snapshot.createdAt) },
+        { createdAt: snapshot.createdAt },
     );
 
 export const restoreCanvasSnapshot = (snapshot: CanvasSnapshot): Canvas =>
     Object.assign(new Canvas(snapshot.id, snapshot.title, snapshot.x, snapshot.y), {
         tasks: snapshot.tasks.map(restoreTaskSnapshot),
         connections: snapshot.connections.map(restoreConnectionSnapshot),
-        createdAt: new Date(snapshot.createdAt),
-        updatedAt: new Date(snapshot.updatedAt),
+        createdAt: snapshot.createdAt,
+        updatedAt: snapshot.updatedAt,
     });

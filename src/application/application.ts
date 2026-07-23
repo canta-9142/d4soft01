@@ -51,9 +51,10 @@ export class Application {
     }> | null = null;
 
     private generateId(type: "canvas" | "task" | "connection"): string {
-        const randomPart = globalThis.crypto?.randomUUID?.()
-            ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-        return `${type}-${randomPart}`;
+        const timestamp = new Date().toISOString().replace(/\D/g, "");
+        const randomPart = globalThis.crypto?.randomUUID?.().replaceAll("-", "").slice(0, 12)
+            ?? Math.random().toString(36).slice(2, 14).padEnd(12, "0");
+        return `${type}-${timestamp}-${randomPart}`;
     }
 
     // Public methods
@@ -163,15 +164,20 @@ export class Application {
         if (canvas.updateTitle(normalizedTitle)) this.updateDirtyState();
         return true;
     }
-    public updateCanvasPosition = (canvasId: string, x: number, y: number): boolean => {
+    public updateCanvasPosition = (
+        canvasId: string,
+        x: number,
+        y: number,
+        deferDirtyState = false,
+    ): boolean => {
         const canvas = findCanvasById(this.state.canvases, canvasId);
         if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-        if (canvas.updatePosition(x, y)) this.updateDirtyState();
+        canvas.updatePosition(x, y);
+        if (!deferDirtyState) this.updateDirtyState();
         return true;
     }
-    /** @deprecated Use updateCanvasPosition. */
-    public updateCanvasPosisiton = this.updateCanvasPosition;
     public changeCanvas = (canvasId: string): boolean => {
+        if (this.mode !== AppMode.NORMAL) return false;
         const destination = findCanvasById(this.state.canvases, canvasId);
         if (!destination) return false;
         const nextViewSettings = Object.assign(new ViewSettings(), this.state.viewSettings);
@@ -197,9 +203,6 @@ export class Application {
     }
 
     // Tasks manipulation
-    public createTask = (): boolean => {
-        return this.createTaskAt("新しいタスク", "", TaskStatus.NOTSTARTED, 40, 40) !== null;
-    }
     public createTaskAt = (title: string, description: string, status: TaskStatus, x: number, y: number): string | null => {
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         const normalizedTitle = title.trim();
@@ -232,24 +235,6 @@ export class Application {
         });
         return task.id;
     }
-    public updateTaskTitle = (taskId: string, title: string): boolean => {
-        const normalizedTitle = title.trim();
-        return normalizedTitle
-            ? this.mutateTask(taskId, HistoryOperationType.TaskEdit, task => task.updateTitle(normalizedTitle))
-            : false;
-    }
-    public updateTaskDescription = (taskId: string, description: string): boolean => {
-        return this.mutateTask(
-            taskId,
-            HistoryOperationType.TaskEdit,
-            task => task.updateDescription(description),
-        );
-    }
-    public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
-        return isTaskStatus(status)
-            ? this.mutateTask(taskId, HistoryOperationType.TaskEdit, task => task.updateStatus(status))
-            : false;
-    }
     public updateTask = (taskId: string, title: string, description: string, status: TaskStatus): boolean => {
         const normalizedTitle = title.trim();
         return normalizedTitle && isTaskStatus(status)
@@ -261,12 +246,14 @@ export class Application {
             : false;
     }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
+        const isActiveMove = this.pendingTaskMove?.taskId === taskId;
         return Number.isFinite(x) && Number.isFinite(y)
             ? this.mutateTask(
                 taskId,
                 HistoryOperationType.TaskMove,
                 task => task.updatePosition(x, y),
-                this.pendingTaskMove?.taskId !== taskId,
+                !isActiveMove,
+                isActiveMove,
             )
             : false;
     }
@@ -288,6 +275,7 @@ export class Application {
         const canvas = findCanvasById(this.state.canvases, pending.canvasId);
         const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         if (!canvas || !task) return false;
+        this.updateDirtyState();
         if (pending.previousTask.x === task.x && pending.previousTask.y === task.y) return true;
         this.recordTaskChange(HistoryOperationType.TaskMove, canvas.id, pending.previousTask, task);
         return true;
@@ -347,8 +335,8 @@ export class Application {
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
         if (parentTaskId === childTaskId) return false;
-        const taskIds = new Set(canvas.tasks.map(task => task.id));
-        if (!taskIds.has(parentTaskId) || !taskIds.has(childTaskId)) return false;
+        const visibleTaskIds = new Set(this.getVisibleItems().tasks.map(task => task.id));
+        if (!visibleTaskIds.has(parentTaskId) || !visibleTaskIds.has(childTaskId)) return false;
         const duplicated = canvas.connections.some(connection =>
             connection.parentTaskId === parentTaskId && connection.childTaskId === childTaskId
         );
@@ -544,6 +532,7 @@ export class Application {
         type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove,
         mutate: (task: Task) => boolean,
         recordHistory = true,
+        deferDirtyState = false,
     ): boolean {
         const canvas = findCanvasByTaskId(this.state.canvases, taskId);
         const task = canvas?.tasks.find(candidate => candidate.id === taskId);
@@ -561,7 +550,7 @@ export class Application {
         if (type === HistoryOperationType.TaskEdit) {
             this.syncSelectionWithVisibleItems();
         }
-        this.updateDirtyState();
+        if (!deferDirtyState) this.updateDirtyState();
         return true;
     }
 

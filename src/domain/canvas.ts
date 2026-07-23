@@ -8,8 +8,8 @@ export class Canvas {
     connections: Array<Connection>;
     x: number;
     y: number;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
 
     constructor(id: string, title: string = "", x: number = 0, y: number = 0) {
         this.id = id;
@@ -18,8 +18,9 @@ export class Canvas {
         this.connections = [];
         this.x = x;
         this.y = y;
-        this.createdAt = new Date();
-        this.updatedAt = new Date();
+        const now = new Date().toISOString();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     public updateTitle = (title: string): boolean => {
@@ -38,6 +39,6 @@ export class Canvas {
     }
 
     private updateTimestamp = (): void => {
-        this.updatedAt = new Date();
+        this.updatedAt = new Date().toISOString();
     }
 }

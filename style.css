@@ -36,9 +36,18 @@ button:disabled {
 }
 
 .menubar {
+    height: 58px;
     border-bottom: 1px solid #e3e2de;
     background: rgb(255 255 255 / 94%);
     box-shadow: 0 1px 4px rgb(47 52 55 / 5%);
+}
+
+.menubar-main {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
 .icon-button,
@@ -51,6 +60,8 @@ button:disabled {
     border: 1px solid #dadada;
     border-radius: 6px;
     background: #fff;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .icon-button:hover,
@@ -101,16 +112,39 @@ button:disabled {
 }
 
 .toolbar-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
     color: #6b6f76;
 }
 
 .mode-indicator {
+    flex-shrink: 0;
     color: #355489;
     background: #edf3ff;
 }
 
+.view-state-indicator {
+    flex: 1 1 auto;
+    min-width: 80px;
+    max-width: min(42vw, 520px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 #dirtyIndicator.is-dirty {
     color: #a15c00;
+}
+
+#dirtyIndicator,
+#taskCount {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.toolbar-actions {
+    flex-shrink: 0;
 }
 
 .canvas-menu {
@@ -118,6 +152,52 @@ button:disabled {
     border-radius: 8px;
     background: #fff;
     box-shadow: 0 12px 32px rgb(47 52 55 / 16%);
+}
+
+.context-menu {
+    position: fixed;
+    z-index: 300;
+    width: min(270px, calc(100vw - 16px));
+    padding: 7px;
+    border: 1px solid #d9d9d5;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 14px 38px rgb(47 52 55 / 20%);
+}
+
+.context-menu[hidden] {
+    display: none;
+}
+
+.context-menu-heading {
+    padding: 7px 9px 8px;
+    overflow: hidden;
+    border-bottom: 1px solid #efefed;
+    color: #6b6f76;
+    font-size: 11px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.context-menu-action {
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    text-align: left;
+}
+
+.context-menu-action:hover,
+.context-menu-action:focus-visible {
+    outline: none;
+    background: #efefed;
+}
+
+.context-menu-action.danger {
+    color: #b42318;
 }
 
 .menu-heading {
@@ -226,6 +306,7 @@ button:disabled {
 .viewport {
     --grid-x: 0px;
     --grid-y: 0px;
+    height: calc(100vh - 58px);
     cursor: grab;
     background-color: #f7f7f5;
     background-image:
@@ -451,8 +532,80 @@ button:disabled {
     min-width: 78px;
 }
 
-.message:not([hidden]) {
-    bottom: 74px;
+.menubar-message {
+    display: inline-flex;
+    max-width: min(320px, 28vw);
+    min-height: 28px;
+    padding: 4px 4px 4px 9px;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    border: 1px solid #d8e4fb;
+    border-radius: 6px;
+    color: #294d88;
+    background: #edf3ff;
+}
+
+.menubar-message[hidden] {
+    display: none;
+}
+
+.menubar-message[data-kind="error"] {
+    border-color: #f0c8c4;
+    color: #a52b21;
+    background: #fff0ee;
+}
+
+#messageText {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#messageCloseButton {
+    display: grid;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    background: transparent;
+    line-height: 1;
+}
+
+#messageCloseButton:hover {
+    background: rgb(47 52 55 / 9%);
+}
+
+@media (max-width: 900px) {
+    .menubar {
+        height: 104px;
+        flex-wrap: wrap;
+        align-content: center;
+    }
+
+    .menubar-main,
+    .toolbar-actions {
+        flex: 1 0 100%;
+    }
+
+    .menubar-main {
+        height: 34px;
+    }
+
+    .toolbar-actions {
+        justify-content: flex-end;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .viewport {
+        height: calc(100vh - 104px);
+    }
 }
 
 @media (max-width: 680px) {
@@ -487,8 +640,30 @@ button:disabled {
         grid-template-columns: minmax(138px, 0.95fr) minmax(130px, 1.05fr);
     }
 
-    .message:not([hidden]) {
-        bottom: 68px;
+    .view-state-indicator {
+        display: none;
+    }
+
+    .menubar-message {
+        position: fixed;
+        top: 112px;
+        right: 10px;
+        z-index: 210;
+        max-width: calc(100vw - 20px);
+    }
+}
+
+@media (max-width: 520px) {
+    .toolbar-actions {
+        gap: 4px;
+        justify-content: space-between;
+        overflow-x: visible;
+    }
+
+    .toolbar-actions .button {
+        min-height: 32px;
+        padding-inline: 5px !important;
+        font-size: 11px;
     }
 }
 
@@ -541,14 +716,30 @@ button:disabled {
     will-change: transform;
 }
 
-.task-card:hover {
+.task-card:hover:not(.is-editing) {
+    z-index: 3;
+    width: 230px;
     border-color: #c9c8c4;
+    box-shadow: 0 8px 24px rgb(47 52 55 / 12%);
 }
 
 .task-card.is-selected,
 .task-card.is-connection-source {
     z-index: 4;
     border-color: #2f6feb;
+}
+
+.task-card.is-selected {
+    width: 250px;
+    min-height: 104px;
+    box-shadow: 0 10px 28px rgb(47 52 55 / 14%);
+}
+
+.task-card.is-editing {
+    z-index: 5;
+    width: 320px;
+    min-height: 0;
+    cursor: default;
 }
 
 .task-card.is-connection-source::after {
@@ -595,11 +786,69 @@ button:disabled {
 }
 
 .task-description {
+    display: none;
     margin: 10px 0 0;
     color: #6b6f76;
     line-height: 1.5;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+}
+
+.task-card.is-selected .task-description,
+.task-card:hover .task-description {
+    display: block;
+}
+
+.task-card-editor {
+    display: grid;
+    gap: 10px;
+}
+
+.task-card-editor label {
+    display: grid;
+    gap: 4px;
+    color: #5f6368;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.task-card-editor input,
+.task-card-editor textarea,
+.task-card-editor select {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid #dadada;
+    border-radius: 5px;
+    outline: none;
+    color: #2f3437;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 400;
+    user-select: text;
+}
+
+.task-card-editor input:focus,
+.task-card-editor textarea:focus,
+.task-card-editor select:focus {
+    border-color: #2f6feb;
+    box-shadow: 0 0 0 2px rgb(47 111 235 / 14%);
+}
+
+.task-card-editor textarea {
+    resize: vertical;
+}
+
+.task-card-edit-error {
+    min-height: 16px;
+    margin: -2px 0;
+    color: #d93025;
+    font-size: 11px;
+}
+
+.task-card-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
 }
 
 .connection-hit {
@@ -641,20 +890,6 @@ button:disabled {
 
 .empty-state p {
     color: #6b6f76;
-}
-
-.message {
-    border: 1px solid #d8e4fb;
-    border-radius: 7px;
-    color: #294d88;
-    background: #edf3ff;
-    box-shadow: 0 8px 24px rgb(47 52 55 / 14%);
-}
-
-.message[data-kind="error"] {
-    border-color: #f0c8c4;
-    color: #a52b21;
-    background: #fff0ee;
 }
 
 .task-dialog {

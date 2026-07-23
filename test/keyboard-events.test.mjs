@@ -55,6 +55,8 @@ const createRenderer = () => ({
     taskForm: { requestSubmit() {} },
     toggleMenu() {},
     toggleFilterPanel() {},
+    hideContextMenu() {},
+    clearMessage() {},
     toggleOperationGuide(force) {
         this.operationGuideDialog.open = force ?? !this.operationGuideDialog.open;
     },
@@ -182,7 +184,7 @@ test("Ctrl+D deletes the selected task without opening the browser bookmark acti
     }
 });
 
-test("Enter submits the task form except in the description, while input shortcuts stay native", () => {
+test("Enter submits the new-task form except in the description, while input shortcuts stay native", () => {
     const restoreGlobals = installDomGlobals();
     try {
         let submitCount = 0;

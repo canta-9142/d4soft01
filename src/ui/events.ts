@@ -28,6 +28,7 @@ export class EventController {
         // Hamburger menu のトグル
         document.querySelector("#hamburger")?.addEventListener("click", event => {
             event.stopPropagation();
+            this.renderer.hideContextMenu();
             this.renderer.toggleMenu();
         });
         // manu 内のボタンのイベントリスナー
@@ -44,6 +45,7 @@ export class EventController {
         });
         this.renderer.operationGuideButton.addEventListener("click", event => {
             event.stopPropagation();
+            this.renderer.hideContextMenu();
             this.renderer.toggleMenu(false);
             this.renderer.toggleFilterPanel(false);
             this.renderer.toggleOperationGuide();
@@ -65,6 +67,7 @@ export class EventController {
         });
         this.renderer.filterButton.addEventListener("click", event => {
             event.stopPropagation();
+            this.renderer.hideContextMenu();
             this.renderer.toggleMenu(false);
             this.renderer.showFilterError("");
             this.renderer.toggleFilterPanel();
@@ -77,6 +80,13 @@ export class EventController {
         document.querySelector("#clearSearchButton")?.addEventListener("click", this.clearSearchText);
         this.renderer.canvasTitleInput.addEventListener("change", this.updateCanvasTitle); // キャンバスタイトルの変更
         document.querySelector("#canvasList")?.addEventListener("click", this.changeCanvas); // キャンバスリストからキャンバスを選択して切替
+        this.renderer.bindMessageClose();
+        this.renderer.contextMenu.addEventListener("click", this.onContextMenuAction);
+        this.renderer.taskLayer.addEventListener("submit", this.saveInlineTask);
+        this.renderer.taskLayer.addEventListener("click", this.onTaskEditorClick);
+        this.renderer.taskLayer.addEventListener("focusin", this.onTaskCardFocus);
+        this.renderer.taskLayer.addEventListener("pointerover", this.updateHoveredCardConnections);
+        this.renderer.taskLayer.addEventListener("pointerout", this.updateHoveredCardConnections);
         
         // ビューポートのイベントリスナー
         // ポインタ操作
@@ -84,6 +94,7 @@ export class EventController {
         this.renderer.viewport.addEventListener("pointermove", this.onPointerMove);
         this.renderer.viewport.addEventListener("pointerup", this.onPointerUp);
         this.renderer.viewport.addEventListener("pointercancel", this.onPointerUp);
+        this.renderer.viewport.addEventListener("contextmenu", this.onContextMenu);
         // ダブルクリック
         this.renderer.viewport.addEventListener("dblclick", this.onDoubleClick);
 
@@ -105,6 +116,9 @@ export class EventController {
         document.addEventListener("click", event => {
             const target = event.target;
             if (!(target instanceof Node)) return;
+            if (!this.renderer.contextMenu.contains(target)) {
+                this.renderer.hideContextMenu();
+            }
             if (!this.renderer.menuPanel.contains(target) && !document.querySelector("#hamburger")?.contains(target)) {
                 this.renderer.toggleMenu(false);
             }
@@ -192,6 +206,7 @@ export class EventController {
             this.renderer.showMessage("キャンバスタイトルを入力してください", "error");
             return;
         }
+        this.renderer.clearMessage();
         this.renderer.render();
     }
 
@@ -212,6 +227,7 @@ export class EventController {
 
     private updateSearchText = (): void => {
         if (!this.app.updateSearchText(this.renderer.searchInput.value)) return;
+        this.renderer.clearMessage();
         this.renderer.showFilterError("");
         this.renderer.render();
     }
@@ -221,6 +237,7 @@ export class EventController {
         const status = value === "" ? null : this.toTaskStatus(value);
         if (value !== "" && status === null) return;
         if (!this.app.updateStatusFilter(status)) return;
+        this.renderer.clearMessage();
         this.renderer.showFilterError("");
         this.renderer.render();
     }
@@ -231,13 +248,15 @@ export class EventController {
             this.renderer.showFilterError("基準にするタスクを選択してください");
             return;
         }
+        this.renderer.clearMessage();
         this.renderer.showFilterError("");
         this.renderer.render();
     }
 
     private toggleDepthFilter = (): void => {
         if (!this.renderer.depthFilterCheckbox.checked) {
-            this.app.clearDepthFilter();
+            if (!this.app.clearDepthFilter()) return;
+            this.renderer.clearMessage();
             this.renderer.showFilterError("");
             this.renderer.render();
             return;
@@ -268,12 +287,14 @@ export class EventController {
             this.renderer.showFilterError("最大深さと基準タスクを確認してください");
             return;
         }
+        this.renderer.clearMessage();
         this.renderer.showFilterError("");
         this.renderer.render();
     }
 
     private clearSearchText = (): void => {
         if (!this.app.clearSearchText()) return;
+        this.renderer.clearMessage();
         this.renderer.showFilterError("");
         this.renderer.render();
         this.renderer.searchInput.focus();
@@ -283,6 +304,8 @@ export class EventController {
         if (event.button !== 0 || !this.app.getCurrentCanvas()) return;
         const target = event.target;
         if (!(target instanceof Element)) return;
+        this.renderer.hideContextMenu();
+        if (this.app.mode === AppMode.EDIT) return;
 
         const taskElement = target.closest<HTMLElement>(".task-card");
         if (taskElement?.dataset.taskId) {
@@ -296,6 +319,7 @@ export class EventController {
             event.preventDefault();
             this.app.currentConnectionId = connectionElement.dataset.connectionId;
             this.app.currentTaskId = null;
+            this.renderer.clearMessage();
             this.renderer.render();
             return;
         }
@@ -306,6 +330,7 @@ export class EventController {
         event.preventDefault();
         this.app.currentTaskId = null;
         this.app.currentConnectionId = null;
+        this.renderer.clearMessage();
         this.renderer.render();
         this.drag = {
             kind: "canvas",
@@ -350,6 +375,7 @@ export class EventController {
         // Keep the card DOM node alive between the two clicks. Replacing it here
         // prevents browsers from dispatching dblclick to the task card.
         this.renderer.updateTaskSelection();
+        this.renderer.clearMessage();
         this.drag = {
             kind: "task",
             pointerId: event.pointerId,
@@ -378,7 +404,7 @@ export class EventController {
         } else {
             const canvas = this.app.getCurrentCanvas();
             if (!canvas) return;
-            this.app.updateCanvasPosition(canvas.id, x, y);
+            this.app.updateCanvasPosition(canvas.id, x, y, true);
             this.renderer.updateCanvasTransform();
         }
     }
@@ -394,6 +420,9 @@ export class EventController {
         this.renderer.viewport.classList.remove("is-panning");
         if (completedDrag.kind === "task" && completedDrag.taskId) {
             this.app.finishTaskMove(completedDrag.taskId);
+        } else if (moved) {
+            const canvas = this.app.getCurrentCanvas();
+            if (canvas) this.app.updateCanvasPosition(canvas.id, canvas.x, canvas.y);
         }
         if (moved) this.renderer.render();
     }
@@ -415,6 +444,78 @@ export class EventController {
         this.renderer.openTaskDialog();
     }
 
+    private onContextMenu = (event: MouseEvent): void => {
+        if (this.app.mode !== AppMode.NORMAL || !this.app.getCurrentCanvas()) return;
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("[data-connection-id]")
+            || target.closest(".canvas-overlay-control")) return;
+
+        const taskId = target.closest<HTMLElement>(".task-card")?.dataset.taskId ?? null;
+        event.preventDefault();
+        this.renderer.toggleMenu(false);
+        this.renderer.toggleFilterPanel(false);
+        this.renderer.hideContextMenu();
+        this.pendingTaskPosition = this.renderer.clientToCanvasPoint(event.clientX, event.clientY);
+        this.app.currentTaskId = taskId;
+        this.app.currentConnectionId = null;
+        this.renderer.clearMessage();
+        this.renderer.render();
+        this.renderer.showContextMenu(
+            taskId ? "task" : "canvas",
+            event.clientX,
+            event.clientY,
+            taskId,
+        );
+    }
+
+    private onContextMenuAction = (event: Event): void => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const action = target.closest<HTMLElement>("[data-context-action]")
+            ?.dataset.contextAction;
+        if (!action) return;
+        const taskId = this.renderer.contextMenu.dataset.taskId ?? null;
+        this.renderer.hideContextMenu();
+
+        switch (action) {
+            case "task-edit":
+                if (taskId) {
+                    this.app.currentTaskId = taskId;
+                    this.openSelectedTaskEditor();
+                }
+                return;
+            case "task-copy":
+                if (taskId) {
+                    const copied = this.app.copyTaskToClipboard(taskId);
+                    this.renderer.showMessage(
+                        copied ? "タスクをコピーしました" : "タスクをコピーできませんでした",
+                        copied ? "info" : "error",
+                    );
+                }
+                return;
+            case "task-delete":
+                if (taskId) this.deleteTask(taskId);
+                return;
+            case "canvas-new-task":
+                this.renderer.openTaskDialog();
+                return;
+            case "canvas-new-canvas":
+                this.createCanvas();
+                return;
+            case "canvas-rename":
+                this.renderer.canvasTitleInput.focus();
+                this.renderer.canvasTitleInput.select();
+                return;
+            case "canvas-delete":
+                this.deleteCurrentCanvas();
+                return;
+            case "canvas-restore":
+                this.restoreState();
+                return;
+        }
+    }
+
     private openNewTaskAtViewportCenter(): void {
         if (!this.app.getCurrentCanvas() || this.app.mode !== AppMode.NORMAL) return;
         const rect = this.renderer.viewport.getBoundingClientRect();
@@ -429,9 +530,68 @@ export class EventController {
         if (this.app.mode !== AppMode.NORMAL || !this.app.currentTaskId) return;
         const task = this.app.getTask(this.app.currentTaskId);
         if (!task) return;
+        this.renderer.hideContextMenu();
+        this.renderer.toggleMenu(false);
+        this.renderer.toggleFilterPanel(false);
         this.app.setMode(AppMode.EDIT);
-        this.renderer.openTaskDialog(task);
         this.renderer.render();
+        window.requestAnimationFrame(this.renderer.focusTaskEditor);
+    }
+
+    private saveInlineTask = (event: SubmitEvent): void => {
+        event.preventDefault();
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.classList.contains("task-card-editor")) {
+            return;
+        }
+        const taskId = form.dataset.taskId;
+        const titleInput = form.querySelector<HTMLInputElement>(".task-edit-title");
+        const descriptionInput = form.querySelector<HTMLTextAreaElement>(".task-edit-description");
+        const statusInput = form.querySelector<HTMLSelectElement>(".task-edit-status");
+        const error = form.querySelector<HTMLElement>(".task-card-edit-error");
+        if (!taskId || !titleInput || !descriptionInput || !statusInput || !error) return;
+
+        const title = titleInput.value.trim();
+        if (!title) {
+            error.textContent = "タイトルを入力してください";
+            titleInput.focus();
+            return;
+        }
+        const status = this.toTaskStatus(statusInput.value);
+        if (!status || !this.app.updateTask(taskId, title, descriptionInput.value, status)) {
+            error.textContent = "タスクを更新できませんでした";
+            return;
+        }
+        this.app.setMode(AppMode.NORMAL);
+        this.renderer.render();
+        this.renderer.showMessage("タスクを更新しました");
+    }
+
+    private onTaskEditorClick = (event: Event): void => {
+        const target = event.target;
+        if (!(target instanceof Element)
+            || !target.closest("[data-task-edit-action='cancel']")) return;
+        this.app.setMode(AppMode.NORMAL);
+        this.renderer.clearMessage();
+        this.renderer.render();
+    }
+
+    private onTaskCardFocus = (event: FocusEvent): void => {
+        if (this.app.mode !== AppMode.NORMAL) return;
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const taskId = target.closest<HTMLElement>(".task-card")?.dataset.taskId;
+        if (!taskId || taskId === this.app.currentTaskId || !this.app.getTask(taskId)) return;
+        this.app.currentTaskId = taskId;
+        this.app.currentConnectionId = null;
+        this.renderer.clearMessage();
+        this.renderer.updateTaskSelection();
+    }
+
+    private updateHoveredCardConnections = (event: PointerEvent): void => {
+        const target = event.target;
+        if (!(target instanceof Element) || !target.closest(".task-card")) return;
+        window.requestAnimationFrame(() => this.renderer.renderConnections());
     }
 
     private saveTask = (event: SubmitEvent): void => {
@@ -452,30 +612,21 @@ export class EventController {
         const status = this.toTaskStatus(statusInput.value);
         if (!status) return;
 
-        const taskId = this.renderer.taskForm.dataset.taskId;
-        if (taskId) {
-            const updated = this.app.updateTask(taskId, title, descriptionInput.value, status);
-            if (!updated) {
-                this.renderer.showTaskFormError("タスクを更新できませんでした");
-                return;
-            }
-        } else {
-            const createdTaskId = this.app.createTaskAt(
-                title,
-                descriptionInput.value,
-                status,
-                this.pendingTaskPosition.x,
-                this.pendingTaskPosition.y,
-            );
-            if (!createdTaskId) {
-                this.renderer.showTaskFormError("タスクを作成できませんでした");
-                return;
-            }
+        const createdTaskId = this.app.createTaskAt(
+            title,
+            descriptionInput.value,
+            status,
+            this.pendingTaskPosition.x,
+            this.pendingTaskPosition.y,
+        );
+        if (!createdTaskId) {
+            this.renderer.showTaskFormError("タスクを作成できませんでした");
+            return;
         }
         this.renderer.closeTaskDialog();
         this.app.setMode(AppMode.NORMAL);
         this.renderer.render();
-        this.renderer.showMessage(taskId ? "タスクを更新しました" : "タスクを追加しました");
+        this.renderer.showMessage("タスクを追加しました");
     }
 
     private onKeyDown = (event: KeyboardEvent): void => {
@@ -494,6 +645,7 @@ export class EventController {
             }
             this.renderer.toggleMenu(false);
             this.renderer.toggleFilterPanel(false);
+            this.renderer.hideContextMenu();
             if (this.renderer.taskDialog.open) {
                 this.renderer.closeTaskDialog();
             }
@@ -520,6 +672,57 @@ export class EventController {
                 this.renderer.taskForm.requestSubmit();
             }
             return;
+        }
+        if (
+            this.app.mode === AppMode.EDIT
+            && event.key === "Enter"
+            && (target instanceof HTMLInputElement
+                || target instanceof HTMLSelectElement)
+            && !event.isComposing
+        ) {
+            const form = target.closest<HTMLFormElement>(".task-card-editor");
+            if (form) {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+            return;
+        }
+        if (this.renderer.contextMenu?.hidden === false
+            && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            this.moveContextMenuFocus(event.key);
+            return;
+        }
+        if (
+            this.app.mode === AppMode.NORMAL
+            && (event.key === "Enter"
+                || event.key === " "
+                || event.key === "ContextMenu"
+                || (event.shiftKey && event.key === "F10"))
+            && target instanceof HTMLElement
+            && typeof target.closest === "function"
+        ) {
+            const card = target.closest<HTMLElement>(".task-card");
+            const taskId = card?.dataset.taskId;
+            if (taskId && this.app.getTask(taskId)) {
+                event.preventDefault();
+                this.app.currentTaskId = taskId;
+                this.app.currentConnectionId = null;
+                if (event.key === "ContextMenu" || event.key === "F10") {
+                    const rect = card.getBoundingClientRect();
+                    this.renderer.clearMessage();
+                    this.renderer.updateTaskSelection();
+                    this.renderer.showContextMenu(
+                        "task",
+                        rect.left + Math.min(24, rect.width / 2),
+                        rect.top + Math.min(24, rect.height / 2),
+                        taskId,
+                    );
+                } else {
+                    this.openSelectedTaskEditor();
+                }
+                return;
+            }
         }
         if (modifier
             && event.shiftKey
@@ -655,6 +858,23 @@ export class EventController {
         }
     }
 
+    private moveContextMenuFocus(key: string): void {
+        const items = Array.from(
+            this.renderer.contextMenu.querySelectorAll<HTMLButtonElement>("[role='menuitem']"),
+        );
+        if (items.length === 0) return;
+        const currentIndex = items.findIndex(item => item === document.activeElement);
+        let nextIndex: number;
+        if (key === "Home") nextIndex = 0;
+        else if (key === "End") nextIndex = items.length - 1;
+        else if (key === "ArrowUp") {
+            nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+        } else {
+            nextIndex = currentIndex >= items.length - 1 ? 0 : currentIndex + 1;
+        }
+        items[nextIndex]?.focus();
+    }
+
     private switchCanvasByOffset(offset: -1 | 1): void {
         const canvases = this.app.state.canvases;
         const currentIndex = canvases.findIndex(
@@ -681,17 +901,26 @@ export class EventController {
         const canvas = this.app.getCurrentCanvas();
         if (!canvas) return;
         if (this.app.currentTaskId) {
-            const task = this.app.getTask(this.app.currentTaskId);
-            if (!task || !window.confirm(`「${task.title}」を削除しますか？`)) return;
-            this.app.removeTask(task.id);
-            this.renderer.render();
+            this.deleteTask(this.app.currentTaskId);
             return;
         }
         if (this.app.currentConnectionId) {
             if (!window.confirm("選択中の接続を削除しますか？")) return;
             this.app.removeConnection(this.app.currentConnectionId);
             this.renderer.render();
+            this.renderer.showMessage("接続を削除しました");
         }
+    }
+
+    private deleteTask(taskId: string): void {
+        const task = this.app.getTask(taskId);
+        if (!task || !window.confirm(`「${task.title}」を削除しますか？`)) return;
+        if (!this.app.removeTask(task.id)) {
+            this.renderer.showMessage("タスクを削除できませんでした", "error");
+            return;
+        }
+        this.renderer.render();
+        this.renderer.showMessage("タスクを削除しました");
     }
 
     private toTaskStatus(value: string): TaskStatus | null {

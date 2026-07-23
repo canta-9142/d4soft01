@@ -29,6 +29,30 @@ test("a canvas uses the specified default title", () => {
     assert.equal(app.getCurrentCanvas()?.title, "新規キャンバス");
 });
 
+test("generated IDs include an explicit timestamp and random component", () => {
+    const app = new Application();
+    app.createCanvas();
+    const canvasId = app.state.currentCanvasId;
+    const taskId = app.createTaskAt("task", "", TaskStatus.NOTSTARTED, 0, 0);
+    assert.ok(canvasId);
+    assert.ok(taskId);
+    assert.match(canvasId, /^canvas-\d{17}-[a-z0-9]{12}$/i);
+    assert.match(taskId, /^task-\d{17}-[a-z0-9]{12}$/i);
+    assert.equal(typeof app.getCurrentCanvas().createdAt, "string");
+    assert.equal(typeof app.getTask(taskId).createdAt, "string");
+});
+
+test("connections can only be created between currently visible tasks", () => {
+    const app = new Application();
+    createCanvas(app, "canvas");
+    const visibleId = createTask(app, "visible");
+    const hiddenId = createTask(app, "hidden");
+    assert.equal(app.updateSearchText("visible"), true);
+
+    assert.equal(app.createConnection(visibleId, hiddenId), false);
+    assert.equal(app.getCurrentCanvas().connections.length, 0);
+});
+
 test("task creation can be undone and redone with a real Task instance", () => {
     const app = new Application();
     createCanvas(app, "canvas");
@@ -205,7 +229,10 @@ test("clipboard keeps a copy-time snapshot and uses the fallback position on ano
     createCanvas(app, "source");
     const sourceId = createTask(app, "source task", 8, 12);
     assert.equal(app.copyTaskToClipboard(sourceId), true);
-    assert.equal(app.updateTaskTitle(sourceId, "changed after copy"), true);
+    assert.equal(
+        app.updateTask(sourceId, "changed after copy", "", TaskStatus.NOTSTARTED),
+        true,
+    );
 
     createCanvas(app, "destination");
     app.historyManager.clear();

@@ -22,9 +22,15 @@ test("selecting a task keeps its card mounted so double-click can open the edito
     const originalElement = globalThis.Element;
     const originalHTMLElement = globalThis.HTMLElement;
     const originalSVGElement = globalThis.SVGElement;
+    const originalWindow = globalThis.window;
     globalThis.Element = FakeElement;
     globalThis.HTMLElement = FakeElement;
     globalThis.SVGElement = FakeElement;
+    globalThis.window = {
+        requestAnimationFrame(callback) {
+            callback();
+        },
+    };
 
     try {
         const taskId = "task-1";
@@ -32,7 +38,7 @@ test("selecting a task keeps its card mounted so double-click can open the edito
         const card = new FakeElement(taskId);
         let fullRenderCount = 0;
         let selectionUpdateCount = 0;
-        let openedTask = null;
+        let focusedEditorCount = 0;
 
         const app = {
             mode: AppMode.NORMAL,
@@ -59,8 +65,12 @@ test("selecting a task keeps its card mounted so double-click can open the edito
             updateTaskSelection: () => {
                 selectionUpdateCount += 1;
             },
-            openTaskDialog: selectedTask => {
-                openedTask = selectedTask;
+            clearMessage() {},
+            hideContextMenu() {},
+            toggleMenu() {},
+            toggleFilterPanel() {},
+            focusTaskEditor() {
+                focusedEditorCount += 1;
             },
             render: () => {
                 fullRenderCount += 1;
@@ -91,11 +101,14 @@ test("selecting a task keeps its card mounted so double-click can open the edito
             preventDefault() {},
         });
 
-        assert.equal(openedTask, task);
         assert.equal(app.mode, AppMode.EDIT);
+        assert.equal(focusedEditorCount, 1);
+        assert.equal(fullRenderCount, 1);
     } finally {
         globalThis.Element = originalElement;
         globalThis.HTMLElement = originalHTMLElement;
         globalThis.SVGElement = originalSVGElement;
+        if (originalWindow === undefined) delete globalThis.window;
+        else globalThis.window = originalWindow;
     }
 });

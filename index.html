@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="jp">
+<html lang="ja">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,32 +8,38 @@
         <link rel="stylesheet" href="./dist/tailwind.css">
     </head>
     <body>
-        <header class="menubar tw:relative tw:z-[100] tw:flex tw:h-[58px] tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-2.5 tw:max-[720px]:gap-1.5 tw:max-[720px]:px-2">
-            <div class="tw:relative">
-                <button id="hamburger" class="icon-button tw:w-9 tw:px-0" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
-                    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                        <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
-                    </svg>
-                </button>
-                <aside id="canvasMenu" class="canvas-menu tw:absolute tw:top-[43px] tw:left-0 tw:w-[250px] tw:p-2" hidden>
-                    <div class="menu-heading tw:px-[9px] tw:py-[7px] tw:text-xs tw:font-[650]">キャンバス</div>
-                    <div id="canvasList" class="canvas-list tw:grid tw:max-h-[260px] tw:gap-0.5 tw:overflow-auto"></div>
-                    <button id="newCanvasButton" class="menu-action tw:mt-1.5" type="button">＋ 新規キャンバス</button>
-                    <button id="saveButton" class="menu-action" type="button">保存</button>
-                    <button id="restoreButton" class="menu-action" type="button">保存状態へ復元</button>
-                    <button id="deleteCanvasButton" class="menu-action danger" type="button" disabled>現在のキャンバスを削除</button>
-                </aside>
+        <header class="menubar tw:relative tw:z-[100] tw:flex tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-2.5 tw:max-[720px]:gap-1.5 tw:max-[720px]:px-2">
+            <div class="menubar-main">
+                <div class="tw:relative">
+                    <button id="hamburger" class="icon-button tw:w-9 tw:px-0" type="button" title="キャンバスメニュー" aria-label="キャンバスメニュー">
+                        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                            <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
+                        </svg>
+                    </button>
+                    <aside id="canvasMenu" class="canvas-menu tw:absolute tw:top-[43px] tw:left-0 tw:w-[250px] tw:p-2" hidden>
+                        <div class="menu-heading tw:px-[9px] tw:py-[7px] tw:text-xs tw:font-[650]">キャンバス</div>
+                        <div id="canvasList" class="canvas-list tw:grid tw:max-h-[260px] tw:gap-0.5 tw:overflow-auto"></div>
+                        <button id="newCanvasButton" class="menu-action tw:mt-1.5" type="button">＋ 新規キャンバス</button>
+                        <button id="restoreButton" class="menu-action" type="button">保存状態へ復元</button>
+                        <button id="deleteCanvasButton" class="menu-action danger" type="button" disabled>現在のキャンバスを削除</button>
+                    </aside>
+                </div>
+
+                <input id="canvasTitleInput" class="canvas-title-input tw:h-[34px] tw:w-[min(240px,26vw)] tw:px-2.5 tw:font-[650] tw:max-[720px]:min-w-0 tw:max-[720px]:flex-1" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
+
+                <div class="toolbar-status tw:flex tw:min-w-0 tw:items-center tw:gap-3 tw:text-xs" aria-live="polite">
+                    <span id="modeIndicator" class="mode-indicator tw:rounded-full tw:px-2 tw:py-1 tw:whitespace-nowrap">通常モード</span>
+                    <span id="viewStateIndicator" class="view-state-indicator">検索なし / 深さ: 無効</span>
+                    <span id="taskCount" class="tw:max-[720px]:hidden">タスク 0</span>
+                    <span id="dirtyIndicator" class="tw:max-[720px]:hidden">変更なし</span>
+                    <span id="message" class="menubar-message" role="status" hidden>
+                        <span id="messageText"></span>
+                        <button id="messageCloseButton" type="button" aria-label="通知を閉じる">×</button>
+                    </span>
+                </div>
             </div>
 
-            <input id="canvasTitleInput" class="canvas-title-input tw:h-[34px] tw:w-[min(300px,34vw)] tw:px-2.5 tw:font-[650] tw:max-[720px]:min-w-0 tw:max-[720px]:flex-1" type="text" placeholder="キャンバスのタイトル" aria-label="キャンバスのタイトル" disabled>
-
-            <div class="toolbar-status tw:flex tw:min-w-0 tw:items-center tw:gap-3 tw:text-xs" aria-live="polite">
-                <span id="modeIndicator" class="mode-indicator tw:rounded-full tw:px-2 tw:py-1 tw:whitespace-nowrap">通常モード</span>
-                <span id="taskCount" class="tw:max-[720px]:hidden">タスク 0</span>
-                <span id="dirtyIndicator" class="tw:max-[720px]:hidden">変更なし</span>
-            </div>
-
-            <div class="tw:ml-auto tw:flex tw:gap-2">
+            <div class="toolbar-actions tw:ml-auto tw:flex tw:gap-2">
                 <div class="tw:relative">
                     <button id="filterButton" class="button tw:max-[720px]:px-[9px]" type="button" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false" title="検索・絞り込み (Ctrl/Cmd+F)" disabled>
                         検索・絞り込み
@@ -89,10 +95,11 @@
                 <button id="addTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" disabled>＋ タスクを追加</button>
                 <button id="editTaskButton" class="button tw:max-[720px]:px-[9px]" type="button" title="選択中のタスクを編集 (Ctrl/Cmd+E)" disabled>タスクを編集</button>
                 <button id="connectModeButton" class="button tw:max-[720px]:px-[9px]" type="button" aria-pressed="false" disabled>接続を作成</button>
+                <button id="saveButton" class="button primary tw:max-[720px]:px-[9px]" type="button">保存</button>
             </div>
         </header>
 
-        <main id="viewport" class="viewport tw:relative tw:h-[calc(100vh-58px)] tw:w-full tw:touch-none tw:overflow-hidden tw:select-none">
+        <main id="viewport" class="viewport tw:relative tw:w-full tw:touch-none tw:overflow-hidden tw:select-none">
             <div id="canvasWorld" class="canvas-world" hidden>
                 <svg id="connectionLayer" class="connection-layer" aria-label="接続線"></svg>
                 <div id="taskLayer" class="task-layer"></div>
@@ -117,7 +124,7 @@
             </button>
         </main>
 
-        <div id="message" class="message tw:fixed tw:right-[18px] tw:bottom-[18px] tw:z-[200] tw:max-w-[min(380px,calc(100vw-36px))] tw:px-3.5 tw:py-2.5" role="status" hidden></div>
+        <aside id="contextMenu" class="context-menu" role="menu" hidden></aside>
 
         <!-- 操作一覧ダイアログ -->
         <dialog id="operationGuideDialog" class="operation-guide-dialog" aria-labelledby="operationGuideTitle">
@@ -137,6 +144,9 @@
                         <dl class="operation-list">
                             <div><dt>空白をダブルクリック</dt><dd>タスクを追加</dd></div>
                             <div><dt>タスクをダブルクリック</dt><dd>タスクを編集</dd></div>
+                            <div><dt>タスクを右クリック</dt><dd>編集・コピー・削除メニュー</dd></div>
+                            <div><dt>空白を右クリック</dt><dd>キャンバスメニュー</dd></div>
+                            <div><dt>タスクにマウスを重ねる</dt><dd>説明をプレビュー</dd></div>
                             <div><dt>タスクをドラッグ</dt><dd>タスクを移動</dd></div>
                             <div><dt>空白をドラッグ</dt><dd>キャンバスを移動</dd></div>
                             <div><dt>タスク / 接続線をクリック</dt><dd>操作対象を選択</dd></div>
