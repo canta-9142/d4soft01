@@ -187,7 +187,9 @@ export class EventController {
         const task = this.app.getTask(taskId);
         if (!task) return;
         if (!this.app.beginTaskMove(taskId)) return;
-        this.renderer.render();
+        // Keep the card DOM node alive between the two clicks. Replacing it here
+        // prevents browsers from dispatching dblclick to the task card.
+        this.renderer.updateTaskSelection();
         this.drag = {
             kind: "task",
             pointerId: event.pointerId,
