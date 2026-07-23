@@ -5,5 +5,5 @@ export class ViewSettings{
     statusFilter: TaskStatus | null = null;
     depthFilterEnabled: boolean = false;
     depthBaseTaskId: string | null = null;
-    maxDepth: number = 0;
+    maxDepth: number | null = null;
 };
