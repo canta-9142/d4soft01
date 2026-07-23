@@ -156,6 +156,32 @@ export class Renderer {
         this.renderConnections();
     }
 
+    updateTaskSelection = (): void => {
+        for (const element of this.taskLayer.querySelectorAll<HTMLElement>(".task-card")) {
+            const taskId = element.dataset.taskId;
+            const task = taskId ? this.app.getTask(taskId) : undefined;
+            const selected = taskId === this.app.currentTaskId;
+            element.classList.toggle("is-selected", selected);
+
+            const description = element.querySelector<HTMLElement>(".task-description");
+            if (!selected || !task?.description) {
+                description?.remove();
+                continue;
+            }
+            if (description) {
+                description.textContent = task.description;
+                continue;
+            }
+            const newDescription = document.createElement("p");
+            newDescription.className = "task-description";
+            newDescription.textContent = task.description;
+            element.append(newDescription);
+        }
+        this.editTaskButton.disabled = !this.app.currentTaskId
+            || !this.app.getTask(this.app.currentTaskId);
+        this.renderConnections();
+    }
+
     clientToCanvasPoint = (clientX: number, clientY: number): { x: number; y: number } => {
         const rect = this.viewport.getBoundingClientRect();
         const canvas = this.app.getCurrentCanvas();
