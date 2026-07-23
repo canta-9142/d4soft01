@@ -10,7 +10,17 @@ import {
     findTaskById,
 } from "../domain/entity-finders.js";
 import { ClipboardState } from "./clipboard-state.js";
-import { HistoryManager } from "../history/history-manager.js";
+import {
+    createCanvasContextSnapshot,
+    createCanvasSnapshot,
+    createConnectionSnapshot,
+    createDepthFilterSnapshot,
+    createSelectionSnapshot,
+    createTaskSnapshot,
+    HistoryManager,
+    HistoryOperationType,
+    type TaskSnapshot,
+} from "../history/history-manager.js";
 
 export class AppState {
     version: string;
@@ -35,6 +45,11 @@ export class Application {
     clipboardState = new ClipboardState();
     historyManager = new HistoryManager();
     isDirty: boolean = false;
+    private pendingTaskMove: Readonly<{
+        canvasId: string;
+        taskId: string;
+        previousTask: TaskSnapshot;
+    }> | null = null;
 
     private generateVersionId(): string {
         return "v-" + this.generateDateString() + "-" + Math.random().toString(36).slice(-8);
@@ -84,6 +99,11 @@ export class Application {
     public removeCanvas = (canvasId: string): boolean => {
         const index = this.state.canvases.findIndex(canvas => canvas.id === canvasId);
         if (index < 0) return false;
+        const canvas = this.state.canvases[index];
+        if (!canvas) return false;
+        const previousCanvasContext = createCanvasContextSnapshot(this);
+        const canvasSnapshot = createCanvasSnapshot(canvas);
+        const removedTaskIds = new Set(canvas.tasks.map(task => task.id));
         this.state.canvases.splice(index, 1);
         if (this.state.currentCanvasId === canvasId) {
             this.state.currentCanvasId = this.state.canvases[index]?.id
@@ -94,7 +114,28 @@ export class Application {
         this.currentConnectionId = null;
         this.connectionParentTaskId = null;
         this.mode = AppMode.NORMAL;
+        if (this.state.viewSettings.depthBaseTaskId
+            && removedTaskIds.has(this.state.viewSettings.depthBaseTaskId)) {
+            this.state.viewSettings.depthFilterEnabled = false;
+            this.state.viewSettings.depthBaseTaskId = null;
+        }
+        if (this.state.canvases.length === 0) {
+            this.state.viewSettings.searchText = "";
+            this.state.viewSettings.statusFilter = null;
+            this.state.viewSettings.depthFilterEnabled = false;
+            this.state.viewSettings.depthBaseTaskId = null;
+            this.state.viewSettings.maxDepth = 0;
+        }
         this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.CanvasDelete,
+            canvasId,
+            targetId: canvasId,
+            canvas: canvasSnapshot,
+            canvasIndex: index,
+            previousCanvasContext,
+            nextCanvasContext: createCanvasContextSnapshot(this),
+        });
         return true;
     }
     public updateCanvasTitle = (canvasId: string, title: string): boolean => {
@@ -132,53 +173,112 @@ export class Application {
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         const normalizedTitle = title.trim();
         if (!canvas || !normalizedTitle || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+        const previousSelection = createSelectionSnapshot(this);
         const task = new Task(this.generateTaskId(), normalizedTitle, description, status, x, y);
         canvas.tasks.push(task);
         this.currentTaskId = task.id;
         this.currentConnectionId = null;
         this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.TaskCreate,
+            canvasId: canvas.id,
+            targetId: task.id,
+            task: createTaskSnapshot(task),
+            taskIndex: canvas.tasks.length - 1,
+            previousSelection,
+            nextSelection: createSelectionSnapshot(this),
+        });
         return task.id;
     }
     public updateTaskTitle = (taskId: string, title: string): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         const normalizedTitle = title.trim();
-        if (!task || !normalizedTitle) return false;
+        if (!canvas || !task || !normalizedTitle) return false;
+        const previousTask = createTaskSnapshot(task);
         task.updateTitle(normalizedTitle);
         this.isDirty = true;
+        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
         return true;
     }
     public updateTaskDescription = (taskId: string, description: string): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
-        if (!task) return false;
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task) return false;
+        const previousTask = createTaskSnapshot(task);
         task.updateDescription(description);
         this.isDirty = true;
+        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
         return true;
     }
     public updateTaskStatus = (taskId: string, status: TaskStatus): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
-        if (!task) return false;
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task || !Object.values(TaskStatus).includes(status)) return false;
+        const previousTask = createTaskSnapshot(task);
         task.updateStatus(status);
         this.isDirty = true;
+        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
         return true;
     }
     public updateTask = (taskId: string, title: string, description: string, status: TaskStatus): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
         const normalizedTitle = title.trim();
-        if (!task || !normalizedTitle || !Object.values(TaskStatus).includes(status)) return false;
+        if (!canvas || !task || !normalizedTitle || !Object.values(TaskStatus).includes(status)) return false;
+        const previousTask = createTaskSnapshot(task);
         task.updateDetails(normalizedTitle, description, status);
         this.isDirty = true;
+        this.recordTaskChange(HistoryOperationType.TaskEdit, canvas.id, previousTask, task);
         return true;
     }
     public updateTaskPosition = (taskId: string, x: number, y: number): boolean => {
-        const task = findTaskById(this.state.canvases, taskId);
-        if (!task || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+        const previousTask = createTaskSnapshot(task);
         task.updatePosition(x, y);
         this.isDirty = true;
+        if (this.pendingTaskMove?.taskId !== taskId) {
+            this.recordTaskChange(HistoryOperationType.TaskMove, canvas.id, previousTask, task);
+        }
+        return true;
+    }
+    public beginTaskMove = (taskId: string): boolean => {
+        const canvas = findCanvasByTaskId(this.state.canvases, taskId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task) return false;
+        this.pendingTaskMove = {
+            canvasId: canvas.id,
+            taskId,
+            previousTask: createTaskSnapshot(task),
+        };
+        return true;
+    }
+    public finishTaskMove = (taskId: string): boolean => {
+        const pending = this.pendingTaskMove;
+        this.pendingTaskMove = null;
+        if (!pending || pending.taskId !== taskId) return false;
+        const canvas = findCanvasById(this.state.canvases, pending.canvasId);
+        const task = canvas?.tasks.find(candidate => candidate.id === taskId);
+        if (!canvas || !task) return false;
+        if (pending.previousTask.x === task.x && pending.previousTask.y === task.y) return true;
+        this.recordTaskChange(HistoryOperationType.TaskMove, canvas.id, pending.previousTask, task);
         return true;
     }
     public removeTask = (taskId: string): boolean => {
         const canvas = findCanvasByTaskId(this.state.canvases, taskId);
         if (!canvas) return false;
+        const taskIndex = canvas.tasks.findIndex(task => task.id === taskId);
+        const task = canvas.tasks[taskIndex];
+        if (!task) return false;
+        const previousSelection = createSelectionSnapshot(this);
+        const previousDepthFilter = createDepthFilterSnapshot(this.state.viewSettings);
+        const removedConnections = canvas.connections.flatMap((connection, index) =>
+            connection.parentTaskId === taskId || connection.childTaskId === taskId
+                ? [{ connection: createConnectionSnapshot(connection), index }]
+                : [],
+        );
         canvas.tasks = canvas.tasks.filter(task => task.id !== taskId);
         canvas.connections = canvas.connections.filter(connection =>
             connection.parentTaskId !== taskId && connection.childTaskId !== taskId
@@ -186,7 +286,23 @@ export class Application {
         if (this.currentTaskId === taskId) this.currentTaskId = null;
         if (this.connectionParentTaskId === taskId) this.connectionParentTaskId = null;
         this.currentConnectionId = null;
+        if (this.state.viewSettings.depthBaseTaskId === taskId) {
+            this.state.viewSettings.depthFilterEnabled = false;
+            this.state.viewSettings.depthBaseTaskId = null;
+        }
         this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.TaskDelete,
+            canvasId: canvas.id,
+            targetId: taskId,
+            task: createTaskSnapshot(task),
+            taskIndex,
+            removedConnections,
+            previousSelection,
+            nextSelection: createSelectionSnapshot(this),
+            previousDepthFilter,
+            nextDepthFilter: createDepthFilterSnapshot(this.state.viewSettings),
+        });
         return true;
     }
 
@@ -200,17 +316,38 @@ export class Application {
             connection.parentTaskId === parentTaskId && connection.childTaskId === childTaskId
         );
         if (duplicated) return false;
-        canvas.connections.push(new Connection(this.generateConnectionId(), parentTaskId, childTaskId));
+        const connection = new Connection(this.generateConnectionId(), parentTaskId, childTaskId);
+        canvas.connections.push(connection);
         this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.ConnectionCreate,
+            canvasId: canvas.id,
+            targetId: connection.id,
+            connection: createConnectionSnapshot(connection),
+            connectionIndex: canvas.connections.length - 1,
+        });
         return true;
     }
 
     public removeConnection = (connectionId: string): boolean => {
         const canvas = findCanvasByConnectionId(this.state.canvases, connectionId);
         if (!canvas) return false;
+        const connectionIndex = canvas.connections.findIndex(connection => connection.id === connectionId);
+        const connection = canvas.connections[connectionIndex];
+        if (!connection) return false;
+        const previousSelection = createSelectionSnapshot(this);
         canvas.connections = canvas.connections.filter(connection => connection.id !== connectionId);
         if (this.currentConnectionId === connectionId) this.currentConnectionId = null;
         this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.ConnectionDelete,
+            canvasId: canvas.id,
+            targetId: connectionId,
+            connection: createConnectionSnapshot(connection),
+            connectionIndex,
+            previousSelection,
+            nextSelection: createSelectionSnapshot(this),
+        });
         return true;
     }
 
@@ -225,26 +362,45 @@ export class Application {
         if (!sourceTask) return false;
         const canvas = findCanvasById(this.state.canvases, this.state.currentCanvasId);
         if (!canvas) return false;
+        const previousSelection = createSelectionSnapshot(this);
         const newTask = new Task(this.generateTaskId());
         newTask.title = sourceTask.title;
         newTask.description = sourceTask.description;
         newTask.status = sourceTask.status;
-        newTask.x = sourceTask.x + 10; // Offset to avoid overlap
-        newTask.y = sourceTask.y + 10; // Offset to avoid overlap
+        newTask.x = sourceTask.x + 24;
+        newTask.y = sourceTask.y + 24;
         canvas.tasks.push(newTask);
+        this.currentTaskId = newTask.id;
+        this.currentConnectionId = null;
+        this.isDirty = true;
+        this.historyManager.record({
+            type: HistoryOperationType.TaskPaste,
+            canvasId: canvas.id,
+            targetId: newTask.id,
+            task: createTaskSnapshot(newTask),
+            taskIndex: canvas.tasks.length - 1,
+            previousSelection,
+            nextSelection: createSelectionSnapshot(this),
+        });
         return true;
     }
 
     // Undo and Redo
     public undo = (): boolean => {
-        let result = this.historyManager.undo();
-        if (!result) return false;
-        return true;
+        this.pendingTaskMove = null;
+        const succeeded = this.historyManager.undo(this);
+        if (succeeded) {
+            this.isDirty = true;
+        }
+        return succeeded;
     }
     public redo = (): boolean => {
-        let result = this.historyManager.redo();
-        if (!result) return false;
-        return true;
+        this.pendingTaskMove = null;
+        const succeeded = this.historyManager.redo(this);
+        if (succeeded) {
+            this.isDirty = true;
+        }
+        return succeeded;
     }
 
     // Searching and Filters
@@ -267,4 +423,20 @@ export class Application {
     // 保存・復元は今回の実装範囲外。LocalStorageService の実装時に戻す。
     // public save = (): boolean => { ... }
     // public restore = (): boolean => { ... }
+
+    private recordTaskChange(
+        type: HistoryOperationType.TaskEdit | HistoryOperationType.TaskMove,
+        canvasId: string,
+        previousTask: TaskSnapshot,
+        task: Task,
+    ): void {
+        const nextTask = createTaskSnapshot(task);
+        this.historyManager.record({
+            type,
+            canvasId,
+            targetId: task.id,
+            previousTask,
+            nextTask,
+        });
+    }
 }
