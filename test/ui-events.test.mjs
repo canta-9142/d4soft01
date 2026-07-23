@@ -7,14 +7,29 @@ import { EventController } from "../dist/ui/events.js";
 class FakeElement {
     constructor(taskId = undefined) {
         this.dataset = taskId ? { taskId } : {};
+        this.capturedPointerId = null;
         this.classList = {
             add() {},
             remove() {},
         };
     }
 
+    setPointerCapture(pointerId) {
+        this.capturedPointerId = pointerId;
+    }
+
+    hasPointerCapture(pointerId) {
+        return this.capturedPointerId === pointerId;
+    }
+
+    releasePointerCapture(pointerId) {
+        if (this.hasPointerCapture(pointerId)) this.capturedPointerId = null;
+    }
+
     closest(selector) {
-        return selector === ".task-card" && this.dataset.taskId ? this : null;
+        if (selector === ".task-card" && this.dataset.taskId) return this;
+        if (selector === "[data-context-action]" && this.dataset.contextAction) return this;
+        return null;
     }
 }
 
@@ -53,15 +68,7 @@ test("selecting a task keeps its card mounted so double-click can open the edito
             },
         };
         const renderer = {
-            viewport: {
-                setPointerCapture() {},
-                hasPointerCapture: () => true,
-                releasePointerCapture() {},
-                classList: {
-                    add() {},
-                    remove() {},
-                },
-            },
+            viewport: new FakeElement(),
             updateTaskSelection: () => {
                 selectionUpdateCount += 1;
             },
@@ -87,8 +94,11 @@ test("selecting a task keeps its card mounted so double-click can open the edito
         };
 
         controller.onPointerDown(pointerEvent);
+        assert.equal(card.capturedPointerId, pointerEvent.pointerId);
+        assert.equal(renderer.viewport.capturedPointerId, null);
         controller.onPointerUp(pointerEvent);
         controller.onPointerDown(pointerEvent);
+        assert.equal(card.capturedPointerId, pointerEvent.pointerId);
         controller.onPointerUp(pointerEvent);
 
         assert.equal(selectionUpdateCount, 2);
@@ -110,5 +120,45 @@ test("selecting a task keeps its card mounted so double-click can open the edito
         globalThis.SVGElement = originalSVGElement;
         if (originalWindow === undefined) delete globalThis.window;
         else globalThis.window = originalWindow;
+    }
+});
+
+test("canvas menu passes the context-menu position when pasting a copied task", () => {
+    const originalElement = globalThis.Element;
+    globalThis.Element = FakeElement;
+
+    try {
+        let pastedPosition = null;
+        let renderCount = 0;
+        let message = null;
+        const app = {
+            pasteTask(position) {
+                pastedPosition = position;
+                return true;
+            },
+        };
+        const renderer = {
+            contextMenu: { dataset: {} },
+            hideContextMenu() {},
+            render() {
+                renderCount += 1;
+            },
+            showMessage(text, kind) {
+                message = { text, kind };
+            },
+        };
+        const controller = new EventController(app, renderer);
+        controller.pendingTaskPosition = { x: 120, y: 240 };
+        const action = new FakeElement();
+        action.dataset.contextAction = "canvas-paste-task";
+
+        controller.onContextMenuAction({ target: action });
+
+        assert.deepEqual(pastedPosition, { x: 120, y: 240 });
+        assert.equal(renderCount, 1);
+        assert.deepEqual(message, { text: "タスクを貼り付けました", kind: "info" });
+    } finally {
+        if (originalElement === undefined) delete globalThis.Element;
+        else globalThis.Element = originalElement;
     }
 });

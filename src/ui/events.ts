@@ -5,6 +5,7 @@ import { Renderer } from "./renderer.js";
 type DragState = {
     kind: "task" | "canvas";
     pointerId: number;
+    captureTarget: Element;
     startClientX: number;
     startClientY: number;
     startX: number;
@@ -310,7 +311,7 @@ export class EventController {
         const taskElement = target.closest<HTMLElement>(".task-card");
         if (taskElement?.dataset.taskId) {
             event.preventDefault();
-            this.handleTaskPointerDown(event, taskElement.dataset.taskId);
+            this.handleTaskPointerDown(event, taskElement);
             return;
         }
 
@@ -335,6 +336,7 @@ export class EventController {
         this.drag = {
             kind: "canvas",
             pointerId: event.pointerId,
+            captureTarget: this.renderer.viewport,
             startClientX: event.clientX,
             startClientY: event.clientY,
             startX: canvas.x,
@@ -345,7 +347,9 @@ export class EventController {
         this.renderer.viewport.classList.add("is-panning");
     }
 
-    private handleTaskPointerDown(event: PointerEvent, taskId: string): void {
+    private handleTaskPointerDown(event: PointerEvent, taskElement: HTMLElement): void {
+        const taskId = taskElement.dataset.taskId;
+        if (!taskId) return;
         this.app.currentTaskId = taskId;
         this.app.currentConnectionId = null;
 
@@ -379,6 +383,7 @@ export class EventController {
         this.drag = {
             kind: "task",
             pointerId: event.pointerId,
+            captureTarget: taskElement,
             startClientX: event.clientX,
             startClientY: event.clientY,
             startX: task.x,
@@ -386,7 +391,10 @@ export class EventController {
             taskId,
             moved: false,
         };
-        this.renderer.viewport.setPointerCapture(event.pointerId);
+        // Capture on the card itself so pointerup/click/dblclick keep the card
+        // as their target. Capturing on the viewport makes a double-click look
+        // like it happened on empty canvas and opens the add-task dialog.
+        taskElement.setPointerCapture(event.pointerId);
     }
 
     private onPointerMove = (event: PointerEvent): void => {
@@ -411,8 +419,8 @@ export class EventController {
 
     private onPointerUp = (event: PointerEvent): void => {
         if (!this.drag || this.drag.pointerId !== event.pointerId) return;
-        if (this.renderer.viewport.hasPointerCapture(event.pointerId)) {
-            this.renderer.viewport.releasePointerCapture(event.pointerId);
+        if (this.drag.captureTarget.hasPointerCapture(event.pointerId)) {
+            this.drag.captureTarget.releasePointerCapture(event.pointerId);
         }
         const completedDrag = this.drag;
         const moved = completedDrag.moved;
@@ -500,6 +508,9 @@ export class EventController {
             case "canvas-new-task":
                 this.renderer.openTaskDialog();
                 return;
+            case "canvas-paste-task":
+                this.pasteTaskAt(this.pendingTaskPosition);
+                return;
             case "canvas-new-canvas":
                 this.createCanvas();
                 return;
@@ -524,6 +535,15 @@ export class EventController {
             rect.top + rect.height / 2 - 45,
         );
         this.renderer.openTaskDialog();
+    }
+
+    private pasteTaskAt(position: Readonly<{ x: number; y: number }>): void {
+        const pasted = this.app.pasteTask(position);
+        if (pasted) this.renderer.render();
+        this.renderer.showMessage(
+            pasted ? "タスクを貼り付けました" : "コピーされたタスクがありません",
+            pasted ? "info" : "error",
+        );
     }
 
     private openSelectedTaskEditor = (): void => {
@@ -782,12 +802,7 @@ export class EventController {
                 rect.left + rect.width / 2 - 100,
                 rect.top + rect.height / 2 - 45,
             );
-            const pasted = this.app.pasteTask(center);
-            if (pasted) this.renderer.render();
-            this.renderer.showMessage(
-                pasted ? "タスクを貼り付けました" : "コピーされたタスクがありません",
-                pasted ? "info" : "error",
-            );
+            this.pasteTaskAt(center);
             return;
         }
         if (modifier && event.key.toLowerCase() === "z") {

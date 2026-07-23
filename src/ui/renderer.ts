@@ -347,6 +347,7 @@ export class Renderer {
             addAction("task-delete", `「${task.title}」を削除`, true);
         } else {
             addAction("canvas-new-task", "新規タスク登録");
+            addAction("canvas-paste-task", "貼り付け");
             addAction("canvas-new-canvas", "新規キャンバス作成");
             addAction("canvas-rename", "キャンバスタイトル変更");
             addAction("canvas-delete", `「${canvas.title}」を削除`, true);
